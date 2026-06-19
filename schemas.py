@@ -23,8 +23,12 @@ PROPOR_TAREFA = {
             "title": {
                 "type": "string",
                 "description": (
-                    "Título da tarefa no imperativo (ex: 'Envie o relatório de vendas'). "
-                    "Resuma e deixe no imperativo se o usuário não o fez."
+                    "Título da tarefa no imperativo, do ponto de vista do assignado — "
+                    "o que ELE/ELA precisa fazer. "
+                    "NUNCA use 'me', 'meu', 'minha' (perspectiva do assigner). "
+                    "Substitua pela pessoa real. "
+                    "Ex: usuário disse 'peça pra Larissa me dar um beijo' → título: 'Dê um beijo no Leonardo'. "
+                    "Ex: 'João precisa me enviar o relatório' → 'Envie o relatório de vendas para o Leonardo'."
                 ),
             },
             "description": {

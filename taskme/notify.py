@@ -16,9 +16,9 @@ from . import config
 
 
 def whatsapp_target(phone: str) -> str:
-    """Normaliza para o alvo do Hermes: whatsapp:<digits>."""
+    """Normaliza para o alvo do Hermes: whatsapp:<digits>@s.whatsapp.net."""
     digits = "".join(ch for ch in phone if ch.isdigit())
-    return f"whatsapp:{digits}"
+    return f"whatsapp:{digits}@s.whatsapp.net"
 
 
 def send(phone: str, text: str) -> bool:
