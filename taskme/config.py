@@ -8,9 +8,12 @@ from zoneinfo import ZoneInfo
 # Carrega .env se python-dotenv estiver disponível (opcional; em prod o
 # ambiente já vem do profile/host). Mantemos sem dependência obrigatória.
 try:  # pragma: no cover - conveniência de dev
+    from pathlib import Path
     from dotenv import load_dotenv
 
-    load_dotenv()
+    # Procura .env na raiz do repo (pai do pacote taskme/)
+    _env_file = Path(__file__).parent.parent / ".env"
+    load_dotenv(_env_file if _env_file.exists() else None)
 except Exception:  # pragma: no cover
     pass
 
