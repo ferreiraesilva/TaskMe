@@ -2,21 +2,24 @@
 # Selftest CI — roda pytest + smoke do cli.py (sem banco real).
 # Uso: bash ci/selftest.sh   (na raiz do repo; DATABASE_URL pode estar no .env)
 set -euo pipefail
-cd "$(dirname "$0")/.."
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO"
 source .env 2>/dev/null || true
 export HERMES_SEND_CMD="echo"
+PYTHON="${REPO}/.venv/bin/python3"
+[ -x "$PYTHON" ] || PYTHON=python3
 
 echo "=== pytest ==="
-python3 -m pytest tests/ -v --tb=short
+"$PYTHON" -m pytest tests/ -v --tb=short
 
 echo ""
 echo "=== smoke: dates ==="
-python3 -c "
+"$PYTHON" -c "
 from taskme.dates import resolve_due
 from datetime import datetime
 now = datetime(2026, 6, 19, 8, 0)
 tests = [
-    ('sexta', '2026-06-19'),          # se sexta = hoje
+    ('sexta', '2026-06-19'),
     ('amanhã', '2026-06-20'),
     ('em 3 dias', '2026-06-22'),
     ('dia 25', '2026-06-25'),
@@ -34,7 +37,7 @@ print(f'  {ok}/{len(tests)} ok')
 
 echo ""
 echo "=== smoke: templates ==="
-python3 -c "
+"$PYTHON" -c "
 from taskme import templates
 from datetime import date
 m = templates.task_message('João', 'Leo', 'TM-1001', 'Envie o relatório', None, date(2026,6,20))
