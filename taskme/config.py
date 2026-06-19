@@ -13,7 +13,7 @@ try:  # pragma: no cover - conveniência de dev
 
     # Procura .env na raiz do repo (pai do pacote taskme/)
     _env_file = Path(__file__).parent.parent / ".env"
-    load_dotenv(_env_file if _env_file.exists() else None)
+    load_dotenv(_env_file if _env_file.exists() else None, override=True)
 except Exception:  # pragma: no cover
     pass
 
