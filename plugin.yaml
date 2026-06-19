@@ -1,0 +1,21 @@
+name: taskme
+version: "0.1.0"
+description: "Atribuição e follow-up de tarefas via WhatsApp — multi-usuário, imperativo, com cobrança automática"
+author: Leonardo Ferreira
+requires_env:
+  - name: DATABASE_URL
+    description: "Connection string Postgres (psycopg[binary]). Ex: postgresql://user:pass@host:5432/dbname"
+    secret: true
+provides_tools:
+  - taskme_propor_tarefa
+  - taskme_criar_tarefa
+  - taskme_add_contato
+  - taskme_consultar
+  - taskme_detalhe
+  - taskme_reprogramar
+  - taskme_concluir
+  - taskme_responder
+provides_hooks:
+  - pre_gateway_dispatch
+  - on_session_start
+  - pre_llm_call
