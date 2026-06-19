@@ -13,23 +13,18 @@ Branch de trabalho: `feature/taskme-v1` (merge na `main` + tag ao validar).
 
 ## Feito
 - [x] Branch `feature/taskme-v1`.
-- [x] Scaffold: `.gitignore`, `requirements.txt`, `.env.example`, `taskme/__init__.py`.
-- [x] `taskme/config.py` (env + TZ + now/today).
-- [x] `taskme/db.py` (psycopg: `transaction()`, `query_all/one`).
-- [x] `taskme/dates.py` (resolução determinística PT-BR).
-- [x] `migrations/0001_init.sql` (idempotente) + aplicada no Supabase.
+- [x] Scaffold + fundação (`config`, `db` psycopg, `dates` PT-BR, `util`, `events`).
+- [x] `migrations/0001_init.sql` aplicada; **SQL dos serviços validado funcionalmente via MCP** (list_pending, due-charge, digests concluídas/reprogramadas/atrasadas, atraso +N) com cenário semeado+limpo.
+- [x] `templates.py` (PT-BR imperativo), `notify.py` (`$HERMES_SEND_CMD`).
+- [x] services: `contacts`, `tasks` (propose/commit/list/complete, code TM-#### via sequence, intro 1ª tarefa), `reprogram`, `charges` (fila 1-por-vez + cobrança + `handle_reply` + `route_inbound`), `digests`, `queries`.
+- [x] `dispatch.py` (cron) + `cli.py` (todos os comandos → JSON).
+- [x] Testes: `tests/test_dates.py` (27) + `tests/test_pure.py` (period/summarize/templates) → **33 verdes**.
 
 ## Próximo passo
-- [ ] `tests/test_dates.py` (cobrir o resolver) + `pytest.ini`/conftest.
-- [ ] `taskme/templates.py` (textos PT-BR imperativos).
-- [ ] `taskme/notify.py` (wrapper `$HERMES_SEND_CMD` via subprocess; mockável).
-- [ ] `services/contacts.py` (resolve/dedupe/add) → `resolve_contact`/`add_contact`.
-- [ ] `services/tasks.py` (propose/commit/list/complete; code TM-#### via sequence; intro 1ª tarefa).
-- [ ] `services/reprogram.py`; `services/charges.py` (+fila/handle_reply); `services/digests.py` + `dispatch.py`; `services/queries.py`.
-- [ ] `taskme/cli.py` (dispatch dos comandos).
-- [ ] Plugin Hermes (`plugin.yaml`, `__init__.py`, `schemas.py`, `tools.py`, `hook.py`).
-- [ ] `cron/`, `.hermes.md`/`AGENTS.md`, `ci/selftest.sh`, `README`, `PROMOTION.md`.
-- [ ] Deploy + teste no host via SSH; merge main + tag.
+- [ ] Plugin Hermes na raiz: `plugin.yaml`, `__init__.py` (register), `schemas.py`, `tools.py` (importam `taskme.services`), `hook.py` (`pre_gateway_dispatch` → `charges.route_inbound`/`handle_reply`).
+- [ ] `cron/monday.sh|diario.sh|cobrancas.sh`, `.hermes.md`/`AGENTS.md`, `ci/selftest.sh`, `PROMOTION.md`.
+- [ ] **Teste E2E vivo** precisa de `DATABASE_URL` (senha do Postgres do Supabase) — pedir ao Leonardo ou pegar no host. Rodar `cli.py` real + seed.
+- [ ] Push, deploy no host via SSH (`~/projects/TaskMe`), `hermes plugins install`, cron; `hermes chat -q` smoke; merge main + tag.
 
 ## Pendências / decisões abertas
 - Hardening: habilitar RLS (deny-all) em prod, pois conexão direta privilegiada bypassa RLS — confirmar role no host.
