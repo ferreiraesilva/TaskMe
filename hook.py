@@ -9,9 +9,9 @@ from __future__ import annotations
 import logging
 import re
 
-from taskme import config, dates
-from taskme.services import charges
-from taskme.util import normalize_phone
+from .taskme import config, dates
+from .taskme.services import charges
+from .taskme.util import normalize_phone
 
 log = logging.getLogger("taskme.hook")
 

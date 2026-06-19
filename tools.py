@@ -4,9 +4,9 @@ from __future__ import annotations
 import json
 import logging
 
-from taskme import config, dates
-from taskme.services import charges, contacts, queries, reprogram as reprogram_svc, tasks
-from taskme.util import normalize_phone
+from .taskme import config, dates
+from .taskme.services import charges, contacts, queries, reprogram as reprogram_svc, tasks
+from .taskme.util import normalize_phone
 
 log = logging.getLogger("taskme.tools")
 
