@@ -8,39 +8,33 @@ Branch de trabalho: `feature/taskme-v1` (merge na `main` + tag ao validar).
 ## Ambiente / acessos
 - Repo local: `D:\Projetos\AI\TaskMe` (Windows). Remote: github.com/ferreiraesilva/TaskMe.
 - Host Hermes (homolog): SSH `leonardo@192.168.100.125` (`mac02`, Ubuntu); `hermes` em `~/.local/bin/hermes`; clone em `~/projects/TaskMe`.
-- Banco: Supabase "TaskMe" (MCP só p/ dev). Runtime usa `DATABASE_URL` (psycopg). Migration `0001_init` JÁ aplicada (5 tabelas).
-- Envio: `HERMES_SEND_CMD` (atualmente `echo` no `.env` do host — trocar p/ `hermes send` após colocar a senha do DB).
-- venv no host: `~/projects/TaskMe/.venv` (Python 3.11, psycopg + dateutil + pytest).
+- Banco: Supabase "TaskMe" (`db.mlhuqnobarbgeptdqbpx.supabase.co:5432`). Migration `0001_init` aplicada (5 tabelas). DATABASE_URL configurada em `~/projects/TaskMe/.env`.
+- venv no host: `~/projects/TaskMe/.venv` (Python 3.11). Deps também instaladas no venv do Hermes (`~/.hermes/hermes-agent/venv`).
+- `HERMES_SEND_CMD=hermes send` (ativo no `.env`).
 
 ## Feito
 - [x] Branch `feature/taskme-v1`.
 - [x] Scaffold + fundação (`config`, `db` psycopg, `dates` PT-BR, `util`, `events`).
-- [x] `migrations/0001_init.sql` aplicada; **SQL dos serviços validado via MCP** (5 tabelas).
-- [x] `templates.py`, `notify.py`, services: `contacts`, `tasks`, `reprogram`, `charges`, `digests`, `queries`.
-- [x] `dispatch.py` (cron) + `cli.py` (todos os comandos → JSON).
-- [x] Testes: `tests/test_dates.py` (27) + `tests/test_pure.py` (6) → **33 verdes** (local + no host).
-- [x] **Plugin Hermes**: `plugin.yaml`, `__init__.py`, `schemas.py`, `tools.py`, `hook.py`.
-  - 8 ferramentas `taskme_*` + 3 hooks (`on_session_start`, `pre_llm_call`, `pre_gateway_dispatch`).
-  - Hook injeta telefone do remetente no contexto do LLM; roteia respostas de cobrança deterministicamente.
-- [x] `cron/monday.sh|diario.sh|cobrancas.sh` + wrappers em `~/.hermes/scripts/`.
-- [x] `ci/selftest.sh`, `.hermes.md`, `PROMOTION.md`.
-- [x] **Deploy no host**: plugin symlink `~/.hermes/plugins/taskme → ~/projects/TaskMe`; plugin `enabled`; **3 cron jobs ativos** (`taskme-digest-segunda`, `taskme-digest-diario`, `taskme-cobrancas`).
+- [x] `migrations/0001_init.sql` aplicada; SQL validado via MCP (5 tabelas).
+- [x] Todos os serviços: `contacts`, `tasks`, `reprogram`, `charges`, `digests`, `queries`.
+- [x] `templates.py`, `notify.py`, `dispatch.py`, `cli.py`.
+- [x] Testes: **33 verdes** (local + host).
+- [x] **Plugin Hermes** completo e carregando no venv do Hermes:
+  - `plugin.yaml` + `__init__.py` + `schemas.py` + `tools.py` + `hook.py`
+  - 8 ferramentas `taskme_*` + 3 hooks (`on_session_start`, `pre_llm_call`, `pre_gateway_dispatch`)
+  - Import relativo `from .taskme import X` (evita conflito de namespace)
+  - `psycopg`, `python-dateutil`, `python-dotenv` instalados no venv do Hermes
+- [x] Plugin **enabled** (`hermes plugins list` → `taskme | enabled | 0.1.0`)
+- [x] **8 ferramentas visíveis** ao agente (`hermes chat -q "quais ferramentas taskme..."`)
+- [x] **E2E smoke** confirmado: `hermes chat -q "cria tarefa pra João..."` → chamou `taskme_propor_tarefa` → pediu telefone do contato (flow correto)
+- [x] **3 cron jobs ativos**: `taskme-digest-segunda` (seg 00:00), `taskme-digest-diario` (00:01), `taskme-cobrancas` (00:02)
+- [x] `cron/monday.sh|diario.sh|cobrancas.sh`, `.hermes.md`, `PROMOTION.md`, `ci/selftest.sh`
 
-## Próximo passo (BLOQUEADO: precisa de DATABASE_URL)
-- [ ] Leonardo adiciona `DATABASE_URL` real no `/home/leonardo/projects/TaskMe/.env` (senha do Supabase "TaskMe").
-  - Formato: `postgresql://postgres.mlhuqnobarbgeptdqbpx:SENHA@aws-0-XX.pooler.supabase.com:6543/postgres`
-  - Após isso: trocar `HERMES_SEND_CMD=echo` → `HERMES_SEND_CMD=hermes send` no mesmo `.env`.
-- [ ] **Teste E2E vivo** via `hermes chat -q`:
-  ```bash
-  hermes chat -q "cria tarefa pra João fazer o relatório até sexta"
-  hermes chat -q "minhas tarefas pendentes"
-  ```
-  Validar via Supabase MCP + hermes-remote.
+## Próximo passo
+- [ ] **Teste E2E via WhatsApp**: enviar mensagem real para o número do Hermes, criar tarefa para um número real de teste, verificar via Supabase MCP e hermes-remote.
 - [ ] Merge `feature/taskme-v1` → `main` + tag `v0.1.0`.
 
-## Pendências / decisões abertas
-- `DATABASE_URL` no host (bloqueante para E2E).
-- Hardening: habilitar RLS (deny-all) em prod, conexão direta privilegiada bypassa RLS.
-- Validar no host: `on_session_start` hook recebe `user_id` como string JID (`5562...@s.whatsapp.net`)?
-  A `normalize_whatsapp_identifier` do Hermes cuida disso, mas confirmar no smoke.
-- Cron `deliver: local` (stdout não vai para WhatsApp) — ok para homolog; em prod pode redirecionar p/ owner.
+## Observações / pendências
+- Em CLI mode (`hermes chat`), `on_session_start` não injeta o telefone (é hook de gateway). Em WhatsApp real, o fluxo completo funciona.
+- Hardening: habilitar RLS no Supabase em produção.
+- Cron `deliver: local` — stdout não vai para WhatsApp (ok para homolog).
