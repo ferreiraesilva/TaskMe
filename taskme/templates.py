@@ -40,8 +40,9 @@ def task_message(
     desc = f"\n{description}" if description else ""
     return (
         f"{head}\n\n"
-        f"*{title}* [{code}]{desc}\n"
-        f"📅 Prazo: {fmt_date(due)}\n\n"
+        f"*{title}*{desc}\n"
+        f"📅 Prazo: {fmt_date(due)}\n"
+        f"🔖 {code}\n\n"
         "Pode confirmar? Se precisar de mais prazo, me avise a nova data e o motivo."
     )
 

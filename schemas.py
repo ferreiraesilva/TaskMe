@@ -33,7 +33,10 @@ PROPOR_TAREFA = {
             },
             "description": {
                 "type": "string",
-                "description": "Detalhes opcionais da tarefa (resumido, máx 280 chars).",
+                "description": (
+                    "Detalhes adicionais — use SOMENTE se o usuário forneceu contexto explícito além do título. "
+                    "NUNCA invente, interprete ou embeleze. Se o usuário não disse nada além do título e prazo, omita este campo."
+                ),
             },
             "due_phrase": {
                 "type": "string",
