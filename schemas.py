@@ -3,9 +3,11 @@
 PROPOR_TAREFA = {
     "name": "taskme_propor_tarefa",
     "description": (
-        "Propõe uma nova tarefa para um colega, sem gravar ainda. "
-        "Use quando o usuário quiser atribuir uma tarefa a outra pessoa. "
-        "Retorna resumo imperativo + prazo formatado para o usuário confirmar antes de criar."
+        "OBRIGATÓRIO para qualquer pedido de criar/atribuir/delegar tarefa a outra pessoa. "
+        "Use SEMPRE que o usuário mencionar tarefa para um colega (Larissa, João, Ana, etc.). "
+        "NUNCA use ferramentas internas de todo/kanban para isso. "
+        "Propõe a tarefa sem gravar — retorna preview para o usuário confirmar. "
+        "Só após confirmação, chame taskme_criar_tarefa."
     ),
     "parameters": {
         "type": "object",
