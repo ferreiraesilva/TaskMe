@@ -33,7 +33,15 @@ psql $DATABASE_URL -f ~/projects/TaskMe/migrations/0001_init.sql
 ```
 Verifique: `psql $DATABASE_URL -c "\dt"` deve mostrar 5 tabelas.
 
-### 4. Criar os cron jobs no profile de produção
+### 4. Aplicar patch no bridge.js do Hermes
+O TaskMe precisa que o WhatsApp bridge reconheça mensagens de contato (vCard).
+Este patch é necessário uma vez por instalação do Hermes (e re-aplicar após updates do Hermes que sobrescrevam o bridge.js):
+```bash
+python3 ~/projects/TaskMe/ci/patch_hermes_bridge.py
+```
+O script verifica se já foi aplicado, testa a sintaxe e reinicia o bridge automaticamente.
+
+### 5. Criar os cron jobs no profile de produção
 ```bash
 hermes cron create "0 0 * * 1" --no-agent --script ~/projects/TaskMe/cron/monday.sh --name taskme-digest-segunda
 hermes cron create "1 0 * * *" --no-agent --script ~/projects/TaskMe/cron/diario.sh --name taskme-digest-diario
