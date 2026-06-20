@@ -31,14 +31,24 @@ def _on_session_start(session_id: str, platform: str, user_id: str, **kwargs) ->
 
 
 def _inject_phone_context(session_id: str, **kwargs) -> dict | None:
-    """pre_llm_call: injeta o telefone do remetente no contexto da mensagem."""
+    """pre_llm_call: injeta o telefone e avisa se há cobrança pendente."""
     phone = _session_phones.get(session_id)
     if not phone:
         return None
+    try:
+        from .taskme.services.charges import has_open_charge
+        pending = has_open_charge(phone)
+    except Exception:
+        pending = False
+    pending_note = (
+        "\n[TaskMe] Esta pessoa tem uma cobrança de tarefa aguardando resposta. "
+        "Se a mensagem for sobre outro assunto, responda normalmente. "
+        "Se ela indicar que concluiu ou quiser um novo prazo, chame taskme_responder."
+    ) if pending else ""
     return {
         "context": (
             f"[TaskMe] Número WhatsApp do remetente desta mensagem: {phone}\n"
-            "Use este valor no parâmetro owner_phone/phone das ferramentas taskme_*."
+            f"Use este valor no parâmetro owner_phone/phone das ferramentas taskme_*.{pending_note}"
         )
     }
 
