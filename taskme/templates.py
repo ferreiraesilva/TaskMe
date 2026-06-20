@@ -33,6 +33,13 @@ def help_message() -> str:
         "💬 É só me pedir — ex: \"cria uma tarefa para a Ana entregar o contrato até sexta\"\n"
         "👤 Na primeira vez, vou pedir o número de WhatsApp da pessoa\n"
         "📲 Depois de confirmado, envio a tarefa direto para ela e acompanho o prazo\n\n"
+        "*Para consultar seu histórico, é só perguntar:*\n"
+        "📂 \"Minhas tarefas pendentes\" — o que você ainda deve entregar\n"
+        "📂 \"O que pedi pra fulano\" — tarefas que você atribuiu a alguém\n"
+        "⚠️ \"Tenho alguma atrasada?\" — pendentes com prazo vencido\n"
+        "✅ \"O que entreguei essa semana\" — suas conclusões no período\n"
+        "🔁 \"O que foi reprogramado?\" — tarefas com prazo renegociado\n"
+        "🔍 \"Detalhes da TM-1042\" — histórico completo de uma tarefa específica\n\n"
         "Tudo por aqui, sem app extra."
     )
 
