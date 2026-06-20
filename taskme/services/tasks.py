@@ -83,13 +83,6 @@ def commit_task(
     description = summarize(description)
 
     with db.transaction() as cur:
-        # 1ª tarefa daquele dono para aquele contato? (antes de inserir)
-        cur.execute(
-            "SELECT count(*) AS n FROM tasks WHERE assigner_user_id=%s AND assignee_contact_id=%s",
-            (owner["id"], contact["id"]),
-        )
-        first = cur.fetchone()["n"] == 0
-
         code = _next_code(cur)
         cur.execute(
             """INSERT INTO tasks
@@ -102,7 +95,7 @@ def commit_task(
         add_event(cur, task_id, "criada", "assignante", title)
 
     msg = templates.task_message(
-        contact["name"], owner.get("name") or "a equipe", code, title, description, d, intro=first
+        contact["name"], owner.get("name") or "a equipe", code, title, description, d
     )
     sent = notify.send(contact["whatsapp_phone"], msg)
     with db.transaction() as cur:

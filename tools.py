@@ -227,6 +227,20 @@ def taskme_concluir(args: dict, **kwargs) -> str:
         return _ok({"status": "error", "message": str(e)})
 
 
+def taskme_ajuda(args: dict, **kwargs) -> str:
+    try:
+        phone = normalize_phone(args.get("phone") or "")
+        if not phone:
+            return _ok({"status": "error", "message": "phone obrigatório."})
+        from .taskme.templates import help_message
+        from .taskme.notify import send
+        sent = send(phone, help_message())
+        return _ok({"status": "ok", "sent": sent})
+    except Exception as e:
+        log.exception("taskme_ajuda")
+        return _ok({"status": "error", "message": str(e)})
+
+
 def taskme_responder(args: dict, **kwargs) -> str:
     """Fallback para respostas em áudio a cobranças."""
     try:

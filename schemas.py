@@ -240,6 +240,25 @@ CONCLUIR = {
     },
 }
 
+AJUDA = {
+    "name": "taskme_ajuda",
+    "description": (
+        "Envia ao remetente uma explicação sobre o que é o TaskMe e como funciona. "
+        "Use quando alguém perguntar 'o que é isso?', 'como funciona?', 'quem é você?', "
+        "'o que é taskme?', 'ajuda' ou qualquer dúvida sobre o sistema."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "phone": {
+                "type": "string",
+                "description": "Número WhatsApp do remetente (apenas dígitos, sem +).",
+            },
+        },
+        "required": ["phone"],
+    },
+}
+
 RESPONDER = {
     "name": "taskme_responder",
     "description": (

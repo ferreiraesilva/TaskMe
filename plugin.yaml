@@ -15,6 +15,7 @@ provides_tools:
   - taskme_reprogramar
   - taskme_concluir
   - taskme_responder
+  - taskme_ajuda
 provides_hooks:
   - pre_gateway_dispatch
   - on_session_start

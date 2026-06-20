@@ -87,10 +87,15 @@ def register(ctx) -> None:
         schema=schemas.RESPONDER, handler=tools.taskme_responder,
         description="Registra resposta de ÁUDIO a cobrança de prazo (fallback do hook).",
     )
+    ctx.register_tool(
+        name="taskme_ajuda", toolset="taskme",
+        schema=schemas.AJUDA, handler=tools.taskme_ajuda,
+        description="Envia manual do TaskMe ao remetente via WhatsApp.",
+    )
 
     # --- Hooks ---
     ctx.register_hook("on_session_start", _on_session_start)
     ctx.register_hook("pre_llm_call", _inject_phone_context)
     ctx.register_hook("pre_gateway_dispatch", hook.handle_gateway)
 
-    log.info("TaskMe plugin registrado: 8 ferramentas + 3 hooks")
+    log.info("TaskMe plugin registrado: 9 ferramentas + 3 hooks")
