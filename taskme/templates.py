@@ -20,15 +20,19 @@ def fmt_date_long(d: date) -> str:
 def help_message() -> str:
     return (
         "👋 Olá! Sou o *TaskMe*, assistente de tarefas via WhatsApp.\n\n"
-        "Pessoas da sua equipe podem me usar para te atribuir tarefas com prazo. "
-        "Quando isso acontecer, vou te avisar aqui mesmo.\n\n"
-        "*Como funciona:*\n"
+        "Funciono nos dois sentidos — você pode *receber* tarefas de quem te atribuiu, "
+        "e também pode *enviar* tarefas para qualquer pessoa que você tenha no WhatsApp, "
+        "da sua equipe ou não, em qualquer lugar do mundo.\n\n"
+        "*Se alguém te atribuiu uma tarefa:*\n"
         "📋 Você recebe a tarefa com prazo e ID (ex: TM-1042)\n"
-        "📅 Toda segunda, recebo um resumo das suas pendentes\n"
-        "🔔 No dia do vencimento, vou te cobrar aqui\n\n"
-        "*Para responder a uma cobrança, é só me dizer:*\n"
-        "✅ Que concluiu — ex: \"feito\", \"pronto\", \"ok\"\n"
-        "📆 Ou pedir novo prazo — ex: \"preciso até sexta\", \"só na semana que vem\"\n\n"
+        "📅 Toda segunda, um resumo das suas pendentes\n"
+        "🔔 No dia do vencimento, vou te cobrar aqui\n"
+        "✅ Responda \"feito\" ou \"pronto\" para concluir\n"
+        "📆 Ou me diga um novo prazo para renegociar\n\n"
+        "*Se você quiser atribuir tarefas para alguém:*\n"
+        "💬 É só me pedir — ex: \"cria uma tarefa para a Ana entregar o contrato até sexta\"\n"
+        "👤 Na primeira vez, vou pedir o número de WhatsApp da pessoa\n"
+        "📲 Depois de confirmado, envio a tarefa direto para ela e acompanho o prazo\n\n"
         "Tudo por aqui, sem app extra."
     )
 
