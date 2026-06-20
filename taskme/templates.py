@@ -17,14 +17,6 @@ def fmt_date_long(d: date) -> str:
 
 
 # ---------- Atribuição ----------
-def intro_prefix(assigner_name: str) -> str:
-    return (
-        f"Olá! Aqui é o assistente de tarefas de {assigner_name}. "
-        "Vou te avisar de prazos às segundas e cobrar no dia do vencimento.\n\n"
-        "Sua primeira tarefa:"
-    )
-
-
 def task_message(
     assignee_name: str,
     assigner_name: str,
@@ -35,13 +27,13 @@ def task_message(
     *,
     intro: bool = False,
 ) -> str:
-    head = intro_prefix(assigner_name) if intro else f"{assignee_name}, {assigner_name} te atribuiu uma tarefa:"
-    desc = f"\n{description}" if description else ""
+    desc_line = f"\n📝 Descrição: {description}" if description else ""
     return (
-        f"{head}\n\n"
-        f"*{title}*{desc}\n"
+        f"{assignee_name}, uma nova tarefa foi atribuída a você pelo TaskMe:\n\n"
+        f"👤 De: {assigner_name}\n"
+        f"📋 Tarefa: {title}{desc_line}\n"
         f"📅 Prazo: {fmt_date(due)}\n"
-        f"🔖 {code}\n\n"
+        f"🔖 ID: {code}\n\n"
         "Me avise quando concluir ou se precisar negociar o prazo."
     )
 
