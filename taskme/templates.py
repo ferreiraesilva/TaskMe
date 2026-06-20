@@ -20,9 +20,8 @@ def fmt_date_long(d: date) -> str:
 def intro_prefix(assigner_name: str) -> str:
     return (
         f"Olá! Aqui é o assistente de tarefas de {assigner_name}. "
-        "Eu organizo e acompanho tarefas por aqui: vou te avisar de prazos às "
-        "segundas e cobrar no dia do vencimento. É só me responder por aqui "
-        "(texto ou áudio).\n\nSua primeira tarefa:"
+        "Vou te avisar de prazos às segundas e cobrar no dia do vencimento.\n\n"
+        "Sua primeira tarefa:"
     )
 
 
@@ -42,7 +41,8 @@ def task_message(
         f"{head}\n\n"
         f"*{title}*{desc}\n"
         f"📅 Prazo: {fmt_date(due)}\n"
-        f"🔖 {code}"
+        f"🔖 {code}\n\n"
+        "Me avise quando concluir ou se precisar negociar o prazo."
     )
 
 
