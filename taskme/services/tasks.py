@@ -93,6 +93,12 @@ def commit_task(
         )
         task_id = cur.fetchone()["id"]
         add_event(cur, task_id, "criada", "assignante", title)
+        # Abre a fila imediatamente — captura respostas antes do cron de cobrança
+        cur.execute(
+            """INSERT INTO interaction_queue (contact_phone, task_id, status, sent_at)
+               VALUES (%s, %s, 'aguardando_resposta', now())""",
+            (contact["whatsapp_phone"], task_id),
+        )
 
     msg = templates.task_message(
         contact["name"], owner.get("name") or "a equipe", code, title, description, d

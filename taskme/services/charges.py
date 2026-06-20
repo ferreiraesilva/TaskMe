@@ -153,14 +153,35 @@ def handle_reply(
             return {"error": "no_open_charge"}
         code, queue_id = openc["code"], openc["queue_id"]
 
+    # Carrega info da tarefa para notificar o assigner
+    task_info = db.query_one(
+        """SELECT u.whatsapp_phone AS assigner_phone, u.name AS assigner_name,
+                  c.name AS assignee_name, t.title
+             FROM tasks t
+             JOIN users u ON u.id = t.assigner_user_id
+             JOIN contacts c ON c.id = t.assignee_contact_id
+            WHERE t.code = %s""",
+        (code,),
+    )
+
+    assigner_msg = None
     if outcome == "done":
         res = tasks_svc.complete_task(code, note, actor="assignado")
         ack = templates.ack_concluida()
+        if task_info:
+            assigner_msg = templates.ack_assigner_done(
+                task_info["assignee_name"], code, task_info["title"]
+            )
     elif outcome == "reprogram":
         res = reprogram_svc.reprogram(code, new_due, justification, by="assignado")
         if "error" in res:
             return res
-        ack = templates.ack_reprogramada(__import__("datetime").date.fromisoformat(res["new_due"]))
+        new_due_date = __import__("datetime").date.fromisoformat(res["new_due"])
+        ack = templates.ack_reprogramada(new_due_date)
+        if task_info:
+            assigner_msg = templates.ack_assigner_reprogram(
+                task_info["assignee_name"], code, task_info["title"], new_due_date, justification
+            )
     else:
         return {"error": "invalid_outcome"}
     if "error" in res:
@@ -173,7 +194,10 @@ def handle_reply(
                 (queue_id,),
             )
 
-    # ack imediato + próxima cobrança da fila (se houver)
+    # ack para o assignado + notificação em tempo real ao assigner
     notify.send(p, ack)
+    if task_info and task_info.get("assigner_phone") and assigner_msg:
+        notify.send(task_info["assigner_phone"], assigner_msg)
+
     nxt = _start_charge_for_phone(p, now)
     return {"ok": True, "code": code, "ack": ack, "next_charge": nxt}

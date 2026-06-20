@@ -93,6 +93,15 @@ def ack_reprogramada(new_due: date) -> str:
     return f"Anotado. Novo prazo registrado para *{fmt_date(new_due)}*. Te cobro nessa data."
 
 
+def ack_assigner_done(assignee_name: str, code: str, title: str) -> str:
+    return f"✅ {assignee_name} concluiu: *{title}* [{code}]"
+
+
+def ack_assigner_reprogram(assignee_name: str, code: str, title: str, new_due: date, justification: str | None = None) -> str:
+    just = f"\nMotivo: {justification}" if justification else ""
+    return f"🔁 {assignee_name} renegociou *{title}* [{code}] para {fmt_date_long(new_due)}.{just}"
+
+
 # ---------- Digest diário do assignante ----------
 def assigner_daily(assigner_name: str, concluidas: list[dict], reprogramadas: list[dict], atrasadas: list[dict]) -> str:
     partes = [f"Resumo de hoje, {assigner_name}:"]
