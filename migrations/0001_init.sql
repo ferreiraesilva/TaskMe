@@ -1,5 +1,4 @@
--- TaskMe — schema inicial. SQL idempotente: roda em qualquer Postgres limpo
--- (Supabase ou container) via psql. Não depende do MCP.
+-- TaskMe — schema inicial. SQL idempotente: roda em qualquer Postgres limpo via psql.
 
 -- ---------- Enums (guardados) ----------
 DO $$ BEGIN

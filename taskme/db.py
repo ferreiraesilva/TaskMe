@@ -1,4 +1,4 @@
-"""Acesso ao Postgres via conexão direta (psycopg). Não usa o Supabase MCP.
+"""Acesso ao Postgres via conexão direta (psycopg).
 
 Uso típico:
     with db.transaction() as cur:

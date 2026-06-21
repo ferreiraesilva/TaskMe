@@ -1,72 +1,56 @@
 # Promoção Homolog → Produção
 
+O TaskMe não gerencia seu próprio deploy. Toda promoção passa pelo
+[`hermes-infra`](https://github.com/ferreiraesilva/hermes-infra):
+o inventário define o deployment, o `deploy-instance.sh` provisiona banco,
+migrations, clone do produto e container.
+
 ## Pré-requisitos
-- Número de "projetos" pareado no Hermes de produção
-- Projeto Supabase de produção criado (base limpa)
-- DATABASE_URL de produção em mãos
 
-## Passo a passo
+- Deployment registrado em `hermes-infra/clients/<cliente>.json`
+- Bot Telegram criado seguindo `TMHA_<Cliente>_<Perfil>_<Ambiente>_bot`
+- Secrets em `~/.config/hermes-infra/secrets/<ambiente>/<deployment>.env`
+- `postgres-<ambiente>` saudável no host de destino
 
-### 1. Instalar o plugin no profile de produção
+## Deploy (homolog ou produção)
+
 ```bash
-# No host de produção (ou no mesmo host com --profile projetos):
-hermes plugins install ferreiraesilva/TaskMe --enable
-# OU, para instalar do clone local:
-ln -s ~/projects/TaskMe ~/.hermes/plugins/taskme
-hermes plugins enable taskme
+# No host de destino (mac02 para hml, solid para prd):
+cd ~/projects/hermes-infra
+./scripts/deploy-instance.sh hml <deployment-id>
+# Ex.: ./scripts/deploy-instance.sh hml leonardo-pessoal
 ```
 
-### 2. Criar o .env de produção
-```bash
-cat > ~/projects/TaskMe/.env <<'EOF'
-DATABASE_URL=postgresql://user:pass@host:5432/prod_db
-TZ=America/Sao_Paulo
-HERMES_SEND_CMD=hermes --profile projetos send
-EOF
-chmod 600 ~/projects/TaskMe/.env
-```
-
-### 3. Aplicar as migrations na base limpa
-```bash
-source ~/projects/TaskMe/.env
-psql $DATABASE_URL -f ~/projects/TaskMe/migrations/0001_init.sql
-```
-Verifique: `psql $DATABASE_URL -c "\dt"` deve mostrar 5 tabelas.
-
-### 4. Aplicar patch no bridge.js do Hermes
-O TaskMe precisa que o WhatsApp bridge reconheça mensagens de contato (vCard).
-Este patch é necessário uma vez por instalação do Hermes (e re-aplicar após updates do Hermes que sobrescrevam o bridge.js):
-```bash
-python3 ~/projects/TaskMe/ci/patch_hermes_bridge.py
-```
-O script verifica se já foi aplicado, testa a sintaxe e reinicia o bridge automaticamente.
-
-### 5. Criar os cron jobs no profile de produção
-```bash
-hermes cron create "0 0 * * 1" --no-agent --script ~/projects/TaskMe/cron/monday.sh --name taskme-digest-segunda
-hermes cron create "1 0 * * *" --no-agent --script ~/projects/TaskMe/cron/diario.sh --name taskme-digest-diario
-hermes cron create "2 0 * * *" --no-agent --script ~/projects/TaskMe/cron/cobrancas.sh --name taskme-cobrancas
-```
-
-### 5. Smoke test
-```bash
-# Dry-run (sem enviar mensagens):
-HERMES_SEND_CMD=echo python3 -m taskme.dispatch monday_digests
-HERMES_SEND_CMD=echo python3 -m taskme.dispatch due_charges
-
-# Com envio real (número do Leonardo):
-hermes chat -q "cria tarefa pra mim fazer o smoke test até hoje"
-```
+O script:
+1. Valida o inventário completo
+2. Cria banco e role exclusivos para o deployment
+3. Clona o TaskMe na branch `feature/taskme-v1` (hml) ou `main` (prd)
+4. Aplica migrations (`0001_init.sql`, `0002_channels.sql`) — idempotentes
+5. Gera `.env` com `DATABASE_URL` apontando para o Postgres local
+6. Sobe container `hermes-<deployment>-<ambiente>` com `gateway run`
 
 ## Diferenças entre ambientes
 
-| | Homolog | Produção |
+| | Homolog (hml) | Produção (prd) |
 |---|---|---|
-| `DATABASE_URL` | Supabase TaskMe (homolog) | Supabase/Postgres de prod |
-| `HERMES_SEND_CMD` | `hermes send` | `hermes --profile projetos send` |
-| Dados | Descartáveis | Base limpa, sem migração |
-| Número | Número pessoal do Hermes | Número de "projetos" |
+| Host | mac02 (192.168.100.125) | solid (177.135.249.173) |
+| Postgres | `postgres-hml` (127.0.0.1:5432) | `postgres-prd` (127.0.0.1:5432) |
+| Deploy | Manual via script | GitHub Actions (`hermes-infra`) |
+| Dados | Seed fictício na 1ª criação | Base limpa, sem seed |
+| Bot Telegram | `TMHA_*_Hml_bot` | `TMHA_*_Prd_bot` |
+
+## Migrations
+
+Sempre idempotentes (`IF NOT EXISTS`). Aplicar na ordem numérica:
+
+```
+migrations/0001_init.sql      # tabelas base (tasks, contacts, charges…)
+migrations/0002_channels.sql  # identidade multicanal (channels, phones…)
+```
+
+O `deploy-instance.sh` aplica todas automaticamente em ordem.
 
 ## Hardening futuro (pós-v1)
-- Habilitar RLS no Supabase (deny-all + policy por role do Postgres)
-- Confirmar que `DATABASE_URL` de produção usa um role não-privilegiado
+
+- Confirmar que o role do deployment só tem acesso ao próprio banco (já garantido pelo script)
+- Avaliar política de backup do `postgres-prd`
