@@ -20,6 +20,7 @@ def test_whatsapp_continua_resolvendo(monkeypatch):
 
 def test_notify_telegram_sem_whatsapp(monkeypatch):
     calls = []
+    monkeypatch.setattr(notify.config, "HERMES_SEND_CMD", "hermes send")
     monkeypatch.setattr(notify.config, "NOTIFY_CHANNELS", ("telegram",))
     monkeypatch.setattr(
         notify.channels, "addresses",
