@@ -51,10 +51,14 @@ def task_message(
     title: str,
     description: str | None,
     due: date,
+    intro: bool = False,
 ) -> str:
     desc_line = f"\n📝 Descrição: {description}" if description else ""
+    intro_line = (
+        f"Olá! Sou o assistente de tarefas de {assigner_name}.\n\n" if intro else ""
+    )
     return (
-        f"{assignee_name}, uma nova tarefa foi atribuída a você pelo TaskMe:\n\n"
+        f"{intro_line}{assignee_name}, uma nova tarefa foi atribuída a você pelo TaskMe:\n\n"
         f"👤 De: {assigner_name}\n"
         f"📋 Tarefa: {title}{desc_line}\n"
         f"📅 Prazo: {fmt_date(due)}\n"

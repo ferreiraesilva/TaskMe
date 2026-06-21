@@ -1,4 +1,4 @@
-"""TaskMe — plugin Hermes para atribuição e follow-up de tarefas via WhatsApp."""
+"""TaskMe — atribuição e follow-up de tarefas por WhatsApp e Telegram."""
 from __future__ import annotations
 
 import logging
@@ -7,25 +7,19 @@ from . import hook, schemas, tools
 
 log = logging.getLogger("taskme.plugin")
 
-# Cache {session_id → normalized_phone} — populado pelo on_session_start
+# Cache {session_id → identidade canônica} — populado pelo on_session_start
 _session_phones: dict[str, str] = {}
 
 
 def _on_session_start(session_id: str, platform: str, user_id: str, **kwargs) -> None:
-    """Armazena o telefone normalizado do remetente por session_id."""
+    """Resolve WhatsApp/Telegram para a identidade canônica da pessoa."""
     try:
         platform_str = str(getattr(platform, "value", platform) or "").lower()
-        if "whatsapp" not in platform_str:
-            return
-        try:
-            from gateway.whatsapp_identity import normalize_whatsapp_identifier
-            phone = normalize_whatsapp_identifier(str(user_id or ""))
-        except Exception:
-            from taskme.util import normalize_phone
-            phone = normalize_phone(str(user_id or ""))
+        from .taskme.identity import resolve
+        phone = resolve(platform_str, str(user_id or ""))
         if phone:
             _session_phones[session_id] = phone
-            log.debug("taskme: session %s → phone %s", session_id, phone)
+            log.debug("taskme: session %s → identity %s", session_id, phone)
     except Exception:
         log.debug("taskme on_session_start cache failed", exc_info=True)
 
@@ -47,7 +41,7 @@ def _inject_phone_context(session_id: str, **kwargs) -> dict | None:
     ) if pending else ""
     return {
         "context": (
-            f"[TaskMe] Número WhatsApp do remetente desta mensagem: {phone}\n"
+            f"[TaskMe] Identidade canônica do remetente desta mensagem: {phone}\n"
             f"Use este valor no parâmetro owner_phone/phone das ferramentas taskme_*.{pending_note}"
         )
     }
@@ -70,7 +64,7 @@ def register(ctx) -> None:
     ctx.register_tool(
         name="taskme_add_contato", toolset="taskme",
         schema=schemas.ADD_CONTATO, handler=tools.taskme_add_contato,
-        description="Salva número WhatsApp de um colega no caderno de contatos.",
+        description="Salva um colega no caderno de contatos.",
     )
     ctx.register_tool(
         name="taskme_consultar", toolset="taskme",
@@ -100,7 +94,7 @@ def register(ctx) -> None:
     ctx.register_tool(
         name="taskme_ajuda", toolset="taskme",
         schema=schemas.AJUDA, handler=tools.taskme_ajuda,
-        description="Envia manual do TaskMe ao remetente via WhatsApp.",
+        description="Envia manual do TaskMe ao remetente pelo canal disponível.",
     )
 
     # --- Hooks ---

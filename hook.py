@@ -11,7 +11,7 @@ import re
 
 from .taskme import config, dates
 from .taskme.services import charges
-from .taskme.util import normalize_phone
+from .taskme.identity import platform_from_event, resolve
 
 log = logging.getLogger("taskme.hook")
 
@@ -59,14 +59,10 @@ def _parse_outcome(text: str):
 
 
 def _phone_from_event(event) -> str:
-    """Extrai telefone normalizado de event.source (WhatsApp JID ou bare)."""
+    """Resolve a origem WhatsApp/Telegram para a identidade canônica."""
     src = getattr(event, "source", None)
     user_id = getattr(src, "user_id", None) or ""
-    try:
-        from gateway.whatsapp_identity import normalize_whatsapp_identifier
-        return normalize_whatsapp_identifier(str(user_id))
-    except Exception:
-        return normalize_phone(str(user_id))
+    return resolve(platform_from_event(event), str(user_id))
 
 
 def _is_text(event) -> bool:

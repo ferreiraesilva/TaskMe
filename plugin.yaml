@@ -1,6 +1,6 @@
 name: taskme
 version: "0.1.0"
-description: "Atribuição e follow-up de tarefas via WhatsApp — multi-usuário, imperativo, com cobrança automática"
+description: "Atribuição e follow-up por WhatsApp e Telegram — multiusuário, imperativo, com cobrança automática"
 author: Leonardo Ferreira
 requires_env:
   - name: DATABASE_URL

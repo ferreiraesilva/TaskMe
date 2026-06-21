@@ -13,6 +13,7 @@ import shlex
 import subprocess
 
 from . import config
+from .services import channels
 
 
 def whatsapp_target(phone: str) -> str:
@@ -21,12 +22,33 @@ def whatsapp_target(phone: str) -> str:
     return f"whatsapp:{digits}@s.whatsapp.net"
 
 
+def telegram_target(address: str) -> str:
+    return f"telegram:{address.strip()}"
+
+
+def targets(phone: str) -> list[str]:
+    """Destinos ativos da pessoa, respeitando os canais habilitados na instalação."""
+    result: list[str] = []
+    if "whatsapp" in config.NOTIFY_CHANNELS:
+        result.append(whatsapp_target(phone))
+    if "telegram" in config.NOTIFY_CHANNELS:
+        result.extend(
+            telegram_target(row["address"])
+            for row in channels.addresses(phone, ("telegram",))
+        )
+    return result
+
+
 def send(phone: str, text: str) -> bool:
-    """Envia `text` para o telefone via Hermes. Retorna True se exit 0."""
+    """Envia para todos os endpoints habilitados; sucesso se ao menos um entregar."""
     base = shlex.split(config.HERMES_SEND_CMD)
-    cmd = [*base, "--to", whatsapp_target(phone), text]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        return proc.returncode == 0
-    except Exception:
-        return False
+    delivered = False
+    for target in targets(phone):
+        try:
+            proc = subprocess.run(
+                [*base, "--to", target, text], capture_output=True, text=True, timeout=30
+            )
+            delivered = proc.returncode == 0 or delivered
+        except Exception:
+            continue
+    return delivered

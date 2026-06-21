@@ -1,6 +1,6 @@
 # TaskMe
 
-Assistente de **cobrança e follow-up de tarefas via WhatsApp**, rodando como um
+Assistente de **cobrança e follow-up de tarefas via WhatsApp e Telegram**, rodando como um
 **plugin do [Hermes Agent](https://hermes-agent.nousresearch.com/)**. Você atribui
 uma tarefa a alguém por texto ou áudio; o TaskMe cria, envia, lembra (segundas),
 cobra no vencimento, registra reprogramações e manda um resumo diário ao autor.
@@ -8,7 +8,9 @@ cobra no vencimento, registra reprogramações e manda um resumo diário ao auto
 - **Lógica determinística em Python** (`taskme/`) — datas, fila, estados, textos.
 - **Adaptador fino no Hermes** — ferramentas tipadas + hook de gateway; o agente só
   transcreve/extrai slots, nunca calcula datas nem compõe os envios.
-- **Banco**: Postgres (Supabase), acesso direto via `psycopg` (`DATABASE_URL`).
+- **Banco**: Postgres, acesso direto via `psycopg` (`DATABASE_URL`).
+- **Identidade multicanal**: o telefone permanece como identidade canônica e pode
+  receber endpoints WhatsApp e Telegram sem duplicar tarefas ou histórico.
 
 ## Setup (host do Hermes)
 ```bash

@@ -20,6 +20,13 @@ except Exception:  # pragma: no cover
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 TZ_NAME = os.environ.get("TZ", "America/Sao_Paulo")
 HERMES_SEND_CMD = os.environ.get("HERMES_SEND_CMD", "hermes send")
+MODE = os.environ.get("TASKME_MODE", "shared").strip().lower()
+TG_TEST_PHONE = os.environ.get("TASKME_TG_TEST_PHONE", "").strip()
+NOTIFY_CHANNELS = tuple(
+    item.strip().lower()
+    for item in os.environ.get("TASKME_NOTIFY_CHANNELS", "whatsapp").split(",")
+    if item.strip().lower() in {"whatsapp", "telegram"}
+)
 
 TZ = ZoneInfo(TZ_NAME)
 
