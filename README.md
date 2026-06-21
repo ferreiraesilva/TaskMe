@@ -26,6 +26,13 @@ hermes cron create "1 0 * * *" --no-agent --script ~/projects/TaskMe/cron/diario
 hermes cron create "2 0 * * *" --no-agent --script ~/projects/TaskMe/cron/cobrancas.sh --name taskme-cobrancas
 ```
 
+## Deployments e nomes
+
+O TaskMe não define bots ou clientes concretos. O inventário, os secrets e os
+usernames Telegram pertencem ao
+[`hermes-infra`](https://github.com/ferreiraesilva/hermes-infra), seguindo
+`TMHA_<Cliente>_<Perfil>_<Ambiente>_bot`.
+
 ## CLI (uso interno; o plugin/cron chamam isto)
 ```bash
 python -m taskme.cli <comando> [args...]   # ver `taskme/cli.py`
