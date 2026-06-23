@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaskMe — Croqui de Testes v1</title>
+<style>
+:root {
+  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+  --border: #30363d; --text: #e6edf3; --text2: #8b949e;
+  --green: #3fb950; --green-bg: #0d2b16; --green-text: #3fb950;
+  --blue: #388bfd; --blue-bg: #0d1f45; --blue-text: #388bfd;
+  --yellow: #d29922; --yellow-bg: #2b1f00; --yellow-text: #d29922;
+  --red: #f85149; --red-bg: #2b0f0d; --red-text: #f85149;
+  --radius: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 1.5rem; max-width: 860px; margin: 0 auto; }
+h1 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; color: var(--text2); }
+.gbar { display: flex; align-items: center; gap: 12px; margin-bottom: 1.2rem; }
+.gfill { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+.gi { height: 4px; background: var(--green); border-radius: 2px; transition: width .3s; }
+.gc { font-size: 12px; color: var(--text2); min-width: 50px; text-align: right; }
+.section { margin-bottom: .75rem; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.sh { display: flex; align-items: center; gap: 10px; padding: .6rem 1rem; background: var(--bg2); border-bottom: 1px solid var(--border); }
+.st { font-size: 13px; font-weight: 500; flex: 1; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; border: 1px solid var(--border); color: var(--text2); background: var(--bg); }
+.badge.ok { background: var(--green-bg); color: var(--green-text); border-color: transparent; }
+.pbar { height: 2px; background: var(--bg3); }
+.pfill { height: 2px; background: var(--green); transition: width .3s; }
+.ti { display: flex; align-items: flex-start; gap: 10px; padding: .5rem 1rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .1s; }
+.ti:last-child { border-bottom: none; }
+.ti:hover { background: var(--bg2); }
+.ti.done { opacity: .45; }
+.cb { width: 15px; height: 15px; border: 1.5px solid var(--border); border-radius: 3px; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; }
+.ti.done .cb { background: var(--green-bg); border-color: var(--green); }
+.ti.done .cb::after { content: ''; width: 8px; height: 4px; border-left: 1.5px solid var(--green); border-bottom: 1.5px solid var(--green); transform: rotate(-45deg) translateY(-1px); display: block; }
+.tt { font-size: 13px; line-height: 1.45; flex: 1; }
+.tn { font-size: 11.5px; color: var(--text2); display: block; margin-top: 3px; }
+.tag { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 3px; margin-right: 4px; font-weight: 600; vertical-align: 1px; }
+.wa { background: var(--green-bg); color: var(--green-text); }
+.auto { background: var(--blue-bg); color: var(--blue-text); }
+.cli { background: var(--yellow-bg); color: var(--yellow-text); }
+.new { background: var(--red-bg); color: var(--red-text); }
+.footer { display: flex; align-items: center; justify-content: space-between; margin-top: 1rem; flex-wrap: wrap; gap: 8px; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; }
+.li { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text2); }
+.rbtn { font-size: 12px; color: var(--text2); background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+.rbtn:hover { background: var(--bg2); }
+</style>
+</head>
+<body>
+<h1>TaskMe — Croqui de Testes v1</h1>
+<div class="gbar">
+  <div class="gfill"><div class="gi" id="gi" style="width:0%"></div></div>
+  <span class="gc" id="gc">0 / 0</span>
+</div>
+<div id="root"></div>
+<div class="footer">
+  <div class="legend">
+    <span class="li"><span class="tag wa">WA</span> via WhatsApp</span>
+    <span class="li"><span class="tag auto">auto</span> sistema automático</span>
+    <span class="li"><span class="tag cli">cli</span> linha de comando</span>
+    <span class="li"><span class="tag new">novo</span> adicionado nesta sessão</span>
+  </div>
+  <button class="rbtn" onclick="reset()">Limpar tudo</button>
+</div>
+
+<script>
+const D = [
+  {title:'Criação de tarefa', items:[
+    {t:'Contato já cadastrado — criar direto', n:'diga "cria tarefa para [nome existente]..." e confirme a proposta', tag:'wa'},
+    {t:'Contato novo — digitar número manualmente', n:'agente pede o número → você digita → add_contato → proposta', tag:'wa'},
+    {t:'Contato novo — compartilhar vCard do WhatsApp', n:'envie o contato pelo WhatsApp; confirme que nome+telefone foi extraído', tag:'wa'},
+    {t:'Título na perspectiva correta do assignado', n:'"peço pra Ana me enviar o relatório" → "Envie o relatório para o Leonardo"', tag:'wa'},
+    {t:'Tarefa com descrição explícita', n:'diga "e avisa que precisa do arquivo em PDF" — deve aparecer na mensagem', tag:'wa'},
+    {t:'Tarefa sem descrição — campo não deve ser inventado', n:'título simples sem contexto extra → sem linha de descrição na mensagem', tag:'wa'},
+    {t:'Prazo não reconhecido → agente pede novo prazo', n:'use frase que o parser não reconhece como data', tag:'wa'},
+    {t:'Cancelar depois da proposta ("não, esquece")', n:'sistema não deve criar a tarefa nem entrar em loop', tag:'wa'},
+  ]},
+  {title:'Resposta a cobrança (hook determinístico)', items:[
+    {t:'"Feito" / "sim" / "ok" — hook marca concluída sem LLM', n:'texto curto positivo → sem chamar agente, sem LLM', tag:'wa'},
+    {t:'"Não, deixa para sexta" — hook reprograma sem LLM', n:'resposta com data futura → reprogramação automática', tag:'wa'},
+    {t:'"Amanhã vou fazer" — ambíguo → agente entra', n:'sem indicador claro de done nem data precisa → cai no agente', tag:'wa'},
+    {t:'Áudio "concluí" — agente → taskme_responder(done)', n:'grave áudio curto dizendo que concluiu', tag:'wa'},
+    {t:'Áudio com nova data — agente → taskme_responder(reprogram)', n:'áudio explicando que precisa de mais prazo e quando', tag:'wa'},
+    {t:'Mensagem de outro assunto quando não há cobrança aberta', n:'fluxo normal — agente responde sem entrar no fluxo de cobrança', tag:'wa'},
+  ]},
+  {title:'Consultas', items:[
+    {t:'"Minhas tarefas pendentes"', n:'lista ordenada por vencimento (você como assignado)', tag:'wa'},
+    {t:'"O que pedi pra [nome]"', n:'filtrado por assignee_name', tag:'wa'},
+    {t:'"Tenho alguma atrasada?"', n:'status=atrasada', tag:'wa'},
+    {t:'"O que a Ana entregou essa semana"', n:'concluída + período last_week', tag:'wa'},
+    {t:'"O que foi reprogramado?"', n:'tarefas com evento de reprogramação', tag:'wa'},
+    {t:'"Detalhes da TM-XXXX"', n:'histórico completo: datas original/atual, eventos, justificativas', tag:'wa'},
+  ]},
+  {title:'Reprogramação e conclusão pelo assigner', items:[
+    {t:'Assigner reprograma tarefa existente', n:'"reprograma a TM-XXXX para semana que vem"', tag:'wa'},
+    {t:'Assigner marca como concluída manualmente', n:'"marca a TM-XXXX como concluída"', tag:'wa'},
+  ]},
+  {title:'Ajuda e manual', items:[
+    {t:'"O que é isso?" — agente chama taskme_ajuda', n:'manual completo deve chegar via WhatsApp ao remetente', tag:'wa', isnew:true},
+    {t:'"Como funciona?" / "ajuda" — mesmo resultado', n:'variações da pergunta devem acionar taskme_ajuda', tag:'wa', isnew:true},
+    {t:'Assigner pede ajuda — manual cobre os dois lados', n:'confirmar que o manual fala de enviar E receber tarefas', tag:'wa', isnew:true},
+  ]},
+  {title:'Cron jobs (agendados)', items:[
+    {t:'Cobrança de vencimento (00:02) — assignado recebe msg no dia do prazo', n:'aguardar o dia do prazo ou disparar manualmente', tag:'auto'},
+    {t:'Digest segunda (00:00) — assignado recebe lista de pendentes', n:'python3 -m taskme.dispatch monday_digests', tag:'auto'},
+    {t:'Digest diário assigner (00:01) — recebe resumo do dia anterior', n:'python3 -m taskme.dispatch assigner_digests', tag:'auto'},
+    {t:'Dry-run sem enviar: HERMES_SEND_CMD=echo', n:'.venv/bin/python3 -m taskme.dispatch due_charges', tag:'cli'},
+  ]},
+  {title:'Gestão de contatos', items:[
+    {t:'Nome duplicado → sistema lista ambíguos e pede qual', n:'crie dois contatos com nome similar e tente criar tarefa por nome', tag:'wa'},
+    {t:'Compartilhar vCard com múltiplos contatos de uma vez', n:'enviar dois contatos juntos (contactsArrayMessage)', tag:'wa', isnew:true},
+  ]},
+  {title:'Robustez e edge cases', items:[
+    {t:'Imagem ou sticker enviado — hook não quebra', n:'hook deve retornar None silenciosamente', tag:'wa'},
+    {t:'Prazo no passado → sistema avisa ou bloqueia', n:'"tarefa pra Ana para ontem"', tag:'wa'},
+    {t:'Mensagem de áudio aleatória sem cobrança aberta', n:'hook devolve allow → agente responde normalmente', tag:'wa'},
+  ]},
+];
+
+const SK = 'tm-v2-state';
+let st = {};
+try { st = JSON.parse(localStorage.getItem(SK) || '{}'); } catch(e) {}
+const save = () => localStorage.setItem(SK, JSON.stringify(st));
+const id = (si, ii) => `s${si}i${ii}`;
+
+function render() {
+  const root = document.getElementById('root');
+  root.innerHTML = '';
+  let total = 0, done = 0;
+  D.forEach((sec, si) => {
+    let sd = 0;
+    sec.items.forEach((_, ii) => { if (st[id(si, ii)]) sd++; });
+    total += sec.items.length; done += sd;
+    const pct = Math.round(sd / sec.items.length * 100);
+    const div = document.createElement('div');
+    div.className = 'section';
+    div.innerHTML = `
+      <div class="sh">
+        <span class="st">${sec.title}</span>
+        <span class="badge${sd === sec.items.length ? ' ok' : ''}">${sd}/${sec.items.length}</span>
+      </div>
+      <div class="pbar"><div class="pfill" style="width:${pct}%"></div></div>
+      <div>${sec.items.map((it, ii) => {
+        const checked = !!st[id(si, ii)];
+        const newTag = it.isnew ? '<span class="tag new">novo</span>' : '';
+        const wTag = `<span class="tag ${it.tag}">${it.tag === 'wa' ? 'WA' : it.tag === 'auto' ? 'auto' : 'cli'}</span>`;
+        return `<div class="ti${checked ? ' done' : ''}" data-si="${si}" data-ii="${ii}">
+          <div class="cb"></div>
+          <div class="tt">${wTag}${newTag}${it.t}<em class="tn">${it.n}</em></div>
+        </div>`;
+      }).join('')}</div>`;
+    root.appendChild(div);
+  });
+  root.querySelectorAll('.ti').forEach(el => {
+    el.addEventListener('click', () => {
+      const k = id(el.dataset.si, el.dataset.ii);
+      st[k] = !st[k]; save(); render();
+    });
+  });
+  document.getElementById('gi').style.width = total ? Math.round(done / total * 100) + '%' : '0%';
+  document.getElementById('gc').textContent = `${done} / ${total}`;
+}
+
+function reset() { st = {}; save(); render(); }
+render();
+</script>
+</body>
+</html>
