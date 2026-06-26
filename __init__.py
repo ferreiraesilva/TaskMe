@@ -9,14 +9,18 @@ log = logging.getLogger("taskme.plugin")
 
 # Cache {session_id → identidade canônica} — populado pelo on_session_start
 _session_phones: dict[str, str] = {}
+# Cache {session_id → (platform, user_id)} — para permitir resolução dinâmica mid-session
+_session_metadata: dict[str, tuple[str, str]] = {}
 
 
 def _on_session_start(session_id: str, platform: str, user_id: str, **kwargs) -> None:
     """Resolve WhatsApp/Telegram para a identidade canônica da pessoa."""
     try:
         platform_str = str(getattr(platform, "value", platform) or "").lower()
+        user_id_str = str(user_id or "").strip()
+        _session_metadata[session_id] = (platform_str, user_id_str)
         from .taskme.identity import resolve
-        phone = resolve(platform_str, str(user_id or ""))
+        phone = resolve(platform_str, user_id_str)
         if phone:
             _session_phones[session_id] = phone
             log.debug("taskme: session %s → identity %s", session_id, phone)
@@ -26,9 +30,20 @@ def _on_session_start(session_id: str, platform: str, user_id: str, **kwargs) ->
 
 def _inject_phone_context(session_id: str, **kwargs) -> dict | None:
     """pre_llm_call: injeta o telefone e avisa se há cobrança pendente."""
-    phone = _session_phones.get(session_id)
+    metadata = _session_metadata.get(session_id)
+    if metadata:
+        platform, user_id = metadata
+        from .taskme.identity import resolve
+        phone = resolve(platform, user_id)
+    else:
+        phone = _session_phones.get(session_id)
+
     if not phone:
         return None
+
+    # Atualiza o cache de telefone
+    _session_phones[session_id] = phone
+
     try:
         from .taskme.services.charges import has_open_charge
         pending = has_open_charge(phone)

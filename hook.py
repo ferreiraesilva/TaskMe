@@ -10,8 +10,9 @@ import logging
 import re
 
 from .taskme import config, dates
-from .taskme.services import charges
+from .taskme.services import charges, channels, contacts
 from .taskme.identity import platform_from_event, resolve
+from .taskme.util import normalize_phone
 
 log = logging.getLogger("taskme.hook")
 
@@ -77,7 +78,39 @@ def _is_text(event) -> bool:
 def handle_gateway(event, **kwargs) -> dict | None:
     """pre_gateway_dispatch: roteamento de cobranças."""
     try:
-        phone = _phone_from_event(event)
+        platform = platform_from_event(event)
+        src = getattr(event, "source", None)
+        user_id = str(getattr(src, "user_id", None) or "")
+
+        phone = resolve(platform, user_id) if (platform and user_id) else ""
+
+        # Se o remetente não tiver telefone vinculado ainda, tentamos vincular dinamicamente
+        # caso ele envie um contato ou um número de telefone
+        if not phone and platform == "telegram" and user_id:
+            text = (getattr(event, "text", None) or "").strip()
+            new_phone = None
+            name = None
+
+            # Caso 1: Contato compartilhado
+            if text.startswith("Contato compartilhado:"):
+                parts = text.split("|")
+                if len(parts) == 2:
+                    name = parts[0].replace("Contato compartilhado:", "").strip()
+                    new_phone = normalize_phone(parts[1])
+            # Caso 2: Digitou o número diretamente
+            else:
+                # Remove caracteres comuns de formatação
+                clean_num = "".join(ch for ch in text if ch.isdigit())
+                if 10 <= len(clean_num) <= 15:
+                    new_phone = clean_num
+
+            if new_phone:
+                channels.link(new_phone, "telegram", user_id)
+                # Garante que o usuário existe na tabela users
+                contacts.get_or_create_user(new_phone, name or "Telegram User")
+                log.info("taskme: linked Telegram user %s to phone %s", user_id, new_phone)
+                phone = new_phone
+
         if not phone:
             return None
 

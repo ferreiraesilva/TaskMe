@@ -44,3 +44,118 @@ def test_notify_dual_channel(monkeypatch):
     assert notify.targets("5562993119454") == [
         "whatsapp:5562993119454@s.whatsapp.net", "telegram:42"
     ]
+
+
+def test_hook_links_telegram_user_from_contact(monkeypatch):
+    import importlib.util
+    import os
+    import sys
+    
+    import taskme as taskme_sub
+    sys.modules["taskme.taskme"] = taskme_sub
+    
+    hook_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../hook.py'))
+    spec = importlib.util.spec_from_file_location("taskme.hook", hook_path)
+    hook = importlib.util.module_from_spec(spec)
+    sys.modules["taskme.hook"] = hook
+    spec.loader.exec_module(hook)
+    
+    linked_channels = []
+    created_users = []
+    
+    monkeypatch.setattr(hook.channels, "link", lambda phone, platform, address: linked_channels.append((phone, platform, address)))
+    monkeypatch.setattr(hook.contacts, "get_or_create_user", lambda phone, name: created_users.append((phone, name)))
+    
+    # Mock platform resolve to return "" (unlinked user)
+    monkeypatch.setattr(hook, "resolve", lambda platform, user_id: "")
+    
+    # Event mock representing contact card sharing
+    event = SimpleNamespace(
+        source=SimpleNamespace(
+            platform="telegram",
+            user_id="12345"
+        ),
+        text="Contato compartilhado: Leonardo | 5562993119454"
+    )
+    
+    res = hook.handle_gateway(event)
+    assert res is None  # Should fall through to LLM
+    assert linked_channels == [("5562993119454", "telegram", "12345")]
+    assert created_users == [("5562993119454", "Leonardo")]
+
+
+def test_hook_links_telegram_user_from_raw_phone(monkeypatch):
+    import importlib.util
+    import os
+    import sys
+    
+    import taskme as taskme_sub
+    sys.modules["taskme.taskme"] = taskme_sub
+    
+    hook_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../hook.py'))
+    spec = importlib.util.spec_from_file_location("taskme.hook", hook_path)
+    hook = importlib.util.module_from_spec(spec)
+    sys.modules["taskme.hook"] = hook
+    spec.loader.exec_module(hook)
+    
+    linked_channels = []
+    created_users = []
+    
+    monkeypatch.setattr(hook.channels, "link", lambda phone, platform, address: linked_channels.append((phone, platform, address)))
+    monkeypatch.setattr(hook.contacts, "get_or_create_user", lambda phone, name: created_users.append((phone, name)))
+    
+    # Mock platform resolve to return "" (unlinked user)
+    monkeypatch.setattr(hook, "resolve", lambda platform, user_id: "")
+    
+    # Event mock representing raw phone number
+    event = SimpleNamespace(
+        source=SimpleNamespace(
+            platform="telegram",
+            user_id="12345"
+        ),
+        text="5562993119454"
+    )
+    
+    res = hook.handle_gateway(event)
+    assert res is None  # Should fall through to LLM
+    assert linked_channels == [("5562993119454", "telegram", "12345")]
+    assert created_users == [("5562993119454", "Telegram User")]
+
+
+def test_dynamic_inject_phone_context(monkeypatch):
+    import importlib.util
+    import os
+    import sys
+    
+    import taskme as taskme_sub
+    sys.modules["taskme.taskme"] = taskme_sub
+    
+    init_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../__init__.py'))
+    spec = importlib.util.spec_from_file_location("taskme", init_path)
+    taskme_root = importlib.util.module_from_spec(spec)
+    sys.modules["taskme"] = taskme_root
+    spec.loader.exec_module(taskme_root)
+    
+    taskme_root._session_metadata["sess_1"] = ("telegram", "12345")
+    
+    # Mock resolve to return empty first, then phone number
+    phone_res = ""
+    def mock_resolve(platform, user_id):
+        return phone_res
+    
+    monkeypatch.setattr(taskme_sub.identity, "resolve", mock_resolve)
+    
+    # First call: not linked yet
+    ctx1 = taskme_root._inject_phone_context("sess_1")
+    assert ctx1 is None
+    
+    # Link the user now
+    phone_res = "5562993119454"
+    
+    # Second call: linked mid-session
+    ctx2 = taskme_root._inject_phone_context("sess_1")
+    assert ctx2 is not None
+    assert "5562993119454" in ctx2["context"]
+    
+    # Restore original sys.modules["taskme"] for other tests
+    sys.modules["taskme"] = taskme_sub
