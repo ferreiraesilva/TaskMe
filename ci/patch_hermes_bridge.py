@@ -88,16 +88,19 @@ def verify_syntax(bridge_path):
     node = os.path.expanduser('~/.hermes/node/bin/node')
     if not os.path.exists(node):
         node = 'node'
-    result = subprocess.run(
-        [node, '--check', bridge_path],
-        capture_output=True, text=True
-    )
-    if result.returncode == 0:
-        print('[patch_hermes_bridge] Syntax OK')
-    else:
-        print('[patch_hermes_bridge] SYNTAX ERROR:')
-        print(result.stderr)
-        sys.exit(1)
+    try:
+        result = subprocess.run(
+            [node, '--check', bridge_path],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            print('[patch_hermes_bridge] Syntax OK')
+        else:
+            print('[patch_hermes_bridge] SYNTAX ERROR:')
+            print(result.stderr)
+            sys.exit(1)
+    except FileNotFoundError:
+        print('[patch_hermes_bridge] Node not found on host, skipping syntax check.')
 
 
 def restart_bridge():
