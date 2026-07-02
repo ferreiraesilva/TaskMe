@@ -11,7 +11,7 @@ import re
 
 from .taskme import config, dates
 from .taskme.services import charges, channels, contacts
-from .taskme.identity import platform_from_event, resolve
+from .taskme.identity import channel_from_platform, platform_from_event, resolve
 from .taskme.util import normalize_phone
 
 log = logging.getLogger("taskme.hook")
@@ -114,8 +114,10 @@ def handle_gateway(event, **kwargs) -> dict | None:
         if not phone:
             return None
 
-        # Só age se esse telefone tem cobrança aguardando resposta
-        if charges.route_inbound(phone) != "skip":
+        channel = channel_from_platform(platform)
+
+        # Só age se esse telefone tem cobrança aguardando resposta NESTE canal
+        if charges.route_inbound(phone, channel) != "skip":
             return None
 
         # Áudio/voz → agent transcribe → taskme_responder
@@ -146,6 +148,7 @@ def handle_gateway(event, **kwargs) -> dict | None:
 
         result = charges.handle_reply(
             phone, outcome,
+            channel=channel,
             new_due=new_due,
             justification=phrase if outcome == "reprogram" else None,
         )

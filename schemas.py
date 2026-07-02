@@ -46,6 +46,15 @@ PROPOR_TAREFA = {
                     "Nunca resolva a data — repasse a frase crua."
                 ),
             },
+            "channel": {
+                "type": "string",
+                "enum": ["whatsapp", "telegram"],
+                "description": (
+                    "Canal desta conversa (meio pelo qual a tarefa está sendo criada). "
+                    "Use o valor informado no contexto '[TaskMe] Canal desta conversa: ...'. "
+                    "A tarefa fica escopada nesse canal."
+                ),
+            },
         },
         "required": ["owner_phone", "assignee_name", "title", "due_phrase"],
     },
@@ -85,6 +94,11 @@ CRIAR_TAREFA = {
             "due": {
                 "type": "string",
                 "description": "Data em formato YYYY-MM-DD (retornada pela proposta).",
+            },
+            "channel": {
+                "type": "string",
+                "enum": ["whatsapp", "telegram"],
+                "description": "Canal retornado por taskme_propor_tarefa (repasse o mesmo valor).",
             },
         },
         "required": ["owner_phone", "assignee_contact_id", "title", "due"],
@@ -154,6 +168,14 @@ CONSULTAR = {
                 "type": "string",
                 "enum": ["due", "completed"],
                 "description": "Ordenação: 'due' por prazo (default), 'completed' por data de conclusão.",
+            },
+            "channel": {
+                "type": "string",
+                "enum": ["whatsapp", "telegram"],
+                "description": (
+                    "Canal desta conversa (do contexto '[TaskMe] Canal desta conversa: ...'). "
+                    "A consulta retorna só as tarefas deste meio de comunicação."
+                ),
             },
         },
         "required": ["phone", "role"],

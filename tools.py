@@ -22,6 +22,7 @@ def taskme_propor_tarefa(args: dict, **kwargs) -> str:
         title = (args.get("title") or "").strip()
         description = args.get("description") or None
         due_phrase = (args.get("due_phrase") or "").strip()
+        channel = (args.get("channel") or "whatsapp").strip().lower()
 
         if not owner_phone:
             return _ok({"status": "error", "message": "owner_phone obrigatório."})
@@ -76,6 +77,7 @@ def taskme_propor_tarefa(args: dict, **kwargs) -> str:
             "description": proposal.get("description"),
             "due": proposal["due"],
             "due_fmt": proposal["due_fmt"],
+            "channel": channel,
             "preview": (
                 f"Vou criar:\n"
                 f"• Para: {contact['name']}\n"
@@ -97,13 +99,14 @@ def taskme_criar_tarefa(args: dict, **kwargs) -> str:
         title = (args.get("title") or "").strip()
         description = args.get("description") or None
         due = (args.get("due") or "").strip()
+        channel = (args.get("channel") or "whatsapp").strip().lower()
 
         if not all([owner_phone, assignee_contact_id, title, due]):
             return _ok({"status": "error", "message": "Parâmetros obrigatórios ausentes (owner_phone, assignee_contact_id, title, due)."})
 
         result = tasks.commit_task(
             owner_phone, assignee_contact_id, title, description, due,
-            owner_name=owner_name,
+            owner_name=owner_name, channel=channel,
         )
         if result.get("error"):
             return _ok({"status": "error", "message": result["error"]})
@@ -207,13 +210,14 @@ def taskme_consultar(args: dict, **kwargs) -> str:
         assignee_name = args.get("assignee_name") or None
         period = args.get("period") or None
         order = args.get("order") or None
+        channel = (args.get("channel") or "").strip().lower() or None
 
         if not phone or not role:
             return _ok({"status": "error", "message": "phone e role são obrigatórios."})
 
         result = queries.query_tasks(
             phone, role, status=status, assignee_name=assignee_name,
-            period=period, order=order,
+            period=period, order=order, channel=channel,
         )
         return _ok({"status": "ok", "tasks": result, "count": len(result)})
     except Exception as e:

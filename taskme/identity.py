@@ -37,6 +37,11 @@ def resolve(platform: str, user_id: str) -> str:
     return ""
 
 
+def channel_from_platform(platform: str) -> str:
+    """Normaliza a plataforma de origem para o canal da tarefa (whatsapp|telegram)."""
+    return "telegram" if "telegram" in (platform or "").lower() else "whatsapp"
+
+
 def platform_from_event(event) -> str:
     source = getattr(event, "source", None)
     value = (

@@ -69,8 +69,16 @@ def commit_task(
     description: str | None,
     due: str,
     owner_name: str | None = None,
+    channel: str = "whatsapp",
 ) -> dict:
-    """Cria a tarefa, registra histórico e ENVIA ao assignado via Hermes."""
+    """Cria a tarefa, registra histórico e ENVIA ao assignado via Hermes.
+
+    `channel` é o meio pelo qual o assignante criou a tarefa (whatsapp|telegram);
+    a tarefa fica escopada nesse canal e a notificação sai só por ele.
+    """
+    channel = (channel or "whatsapp").strip().lower()
+    if channel not in ("whatsapp", "telegram"):
+        channel = "whatsapp"
     owner = contacts.get_or_create_user(owner_phone, owner_name)
     contact = contacts.get_contact(assignee_contact_id)
     if not contact:
@@ -87,24 +95,24 @@ def commit_task(
         cur.execute(
             """INSERT INTO tasks
                  (code, assigner_user_id, assignee_contact_id, title, description,
-                  original_due_date, current_due_date)
-               VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-            (code, owner["id"], contact["id"], title, description, d, d),
+                  original_due_date, current_due_date, channel)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+            (code, owner["id"], contact["id"], title, description, d, d, channel),
         )
         task_id = cur.fetchone()["id"]
         add_event(cur, task_id, "criada", "assignante", title)
         # Abre a fila imediatamente — captura respostas antes do cron de cobrança
         cur.execute(
-            """INSERT INTO interaction_queue (contact_phone, task_id, status, sent_at)
-               VALUES (%s, %s, 'aguardando_resposta', now())""",
-            (contact["whatsapp_phone"], task_id),
+            """INSERT INTO interaction_queue (contact_phone, task_id, channel, status, sent_at)
+               VALUES (%s, %s, %s, 'aguardando_resposta', now())""",
+            (contact["whatsapp_phone"], task_id, channel),
         )
 
     msg = templates.task_message(
         contact["name"], owner.get("name") or "a equipe", code, title, description, d
     )
-    had_targets = bool(notify.targets(contact["whatsapp_phone"]))
-    sent = notify.send(contact["whatsapp_phone"], msg)
+    had_targets = bool(notify.channel_targets(contact["whatsapp_phone"], channel))
+    sent = notify.send_on(contact["whatsapp_phone"], channel, msg)
     with db.transaction() as cur:
         if sent:
             add_event(cur, task_id, "enviada", "sistema", "tarefa enviada ao assignado")
@@ -117,6 +125,7 @@ def commit_task(
         "assignee_name": contact["name"],
         "assignee_phone": contact["whatsapp_phone"],
         "due_fmt": templates.fmt_date(d),
+        "channel": channel,
         "sent": sent,
         "had_targets": had_targets,
         "message": msg,
@@ -132,6 +141,7 @@ def resend_task(task_code: str, requester_phone: str | None = None) -> dict:
     """
     task = db.query_one(
         """SELECT t.id, t.code, t.title, t.description, t.current_due_date, t.status,
+                  t.channel,
                   c.name AS assignee_name, c.whatsapp_phone AS assignee_phone,
                   u.name AS assigner_name, u.whatsapp_phone AS assigner_phone
              FROM tasks t
@@ -149,13 +159,14 @@ def resend_task(task_code: str, requester_phone: str | None = None) -> dict:
     if str(task["status"]) == "concluida":
         return {"error": "task_completed"}
 
+    channel = task["channel"]
     d = _to_date(task["current_due_date"])
     msg = templates.task_message(
         task["assignee_name"], task["assigner_name"] or "a equipe",
         task["code"], task["title"], task.get("description"), d,
     )
-    had_targets = bool(notify.targets(task["assignee_phone"]))
-    sent = notify.send(task["assignee_phone"], msg)
+    had_targets = bool(notify.channel_targets(task["assignee_phone"], channel))
+    sent = notify.send_on(task["assignee_phone"], channel, msg)
     with db.transaction() as cur:
         if sent:
             add_event(cur, task["id"], "enviada", "sistema", "tarefa reenviada ao assignado")
@@ -166,36 +177,40 @@ def resend_task(task_code: str, requester_phone: str | None = None) -> dict:
         "ok": True,
         "code": task["code"],
         "assignee_name": task["assignee_name"],
+        "channel": channel,
         "sent": sent,
         "had_targets": had_targets,
     }
 
 
-def list_pending(phone: str, role: str) -> list[dict]:
+def list_pending(phone: str, role: str, channel: str | None = None) -> list[dict]:
     """Tarefas pendentes ordenadas por vencimento.
 
     role=assigner → o que ESSE telefone pediu; role=assignee → o que devem dele.
+    `channel` (opcional) escopa por meio de comunicação (whatsapp|telegram).
     """
     p = normalize_phone(phone)
+    ch_clause = " AND t.channel = %s" if channel else ""
+    ch_params = (channel,) if channel else ()
     if role == "assigner":
         return db.query_all(
-            """SELECT t.code, t.title, t.current_due_date, t.original_due_date, c.name AS assignee_name
+            f"""SELECT t.code, t.title, t.current_due_date, t.original_due_date, c.name AS assignee_name
                  FROM tasks t
                  JOIN users u ON u.id = t.assigner_user_id
                  JOIN contacts c ON c.id = t.assignee_contact_id
-                WHERE u.whatsapp_phone = %s AND t.status = 'pendente'
+                WHERE u.whatsapp_phone = %s AND t.status = 'pendente'{ch_clause}
                 ORDER BY t.current_due_date""",
-            (p,),
+            (p, *ch_params),
         )
     return db.query_all(
-        """SELECT t.code, t.title, t.current_due_date, t.original_due_date,
+        f"""SELECT t.code, t.title, t.current_due_date, t.original_due_date,
                   u.name AS assigner_name
              FROM tasks t
              JOIN contacts c ON c.id = t.assignee_contact_id
              JOIN users u ON u.id = t.assigner_user_id
-            WHERE c.whatsapp_phone = %s AND t.status = 'pendente'
+            WHERE c.whatsapp_phone = %s AND t.status = 'pendente'{ch_clause}
             ORDER BY t.current_due_date""",
-        (p,),
+        (p, *ch_params),
     )
 
 

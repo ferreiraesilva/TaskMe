@@ -35,6 +35,7 @@ def query_tasks(
     assignee_name: str | None = None,
     period: str | None = None,
     order: str | None = None,
+    channel: str | None = None,
 ) -> list[dict]:
     p = normalize_phone(phone)
     today = config.today()
@@ -47,6 +48,10 @@ def query_tasks(
     else:
         where.append("c.whatsapp_phone = %s")
         params.append(p)
+
+    if channel:
+        where.append("t.channel = %s")
+        params.append(channel)
 
     if assignee_name and role == "assigner":
         where.append("c.name ILIKE %s")
@@ -76,7 +81,7 @@ def query_tasks(
 
     sql = f"""
         SELECT t.code, t.title, t.status, t.original_due_date, t.current_due_date,
-               t.completed_at, t.reprogram_count,
+               t.completed_at, t.reprogram_count, t.channel,
                c.name AS assignee_name, u.name AS assigner_name
           FROM tasks t
           JOIN contacts c ON c.id = t.assignee_contact_id

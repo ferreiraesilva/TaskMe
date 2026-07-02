@@ -1,4 +1,7 @@
-"""Digests: segunda (assignados) e diário do dia anterior (assignantes)."""
+"""Digests: segunda (assignados) e diário do dia anterior (assignantes).
+
+Escopados por canal: um mesmo telefone recebe um digest por canal em que tem
+tarefas, entregue naquele canal (whatsapp|telegram)."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -9,26 +12,26 @@ _TZ = config.TZ_NAME
 
 
 def build_monday_digests(now: datetime | None = None) -> list[dict]:
-    """Para cada assignado (telefone) com pendentes, envia a lista por vencimento."""
+    """Para cada (assignado, canal) com pendentes, envia a lista por vencimento."""
     now = now or config.now()
     rows = db.query_all(
-        """SELECT c.whatsapp_phone AS phone, c.name AS name,
+        """SELECT c.whatsapp_phone AS phone, c.name AS name, t.channel,
                   t.code, t.title, t.current_due_date
              FROM tasks t
              JOIN contacts c ON c.id = t.assignee_contact_id
             WHERE t.status = 'pendente'
-            ORDER BY c.whatsapp_phone, t.current_due_date""",
+            ORDER BY c.whatsapp_phone, t.channel, t.current_due_date""",
     )
-    by_phone: dict[str, dict] = {}
+    by_key: dict[tuple, dict] = {}
     for r in rows:
-        g = by_phone.setdefault(r["phone"], {"name": r["name"], "items": []})
+        g = by_key.setdefault((r["phone"], r["channel"]), {"name": r["name"], "items": []})
         g["items"].append(r)
 
     sent = []
-    for phone, g in by_phone.items():
+    for (phone, channel), g in by_key.items():
         msg = templates.monday_digest(g["name"], g["items"])
-        notify.send(phone, msg)
-        sent.append({"phone": phone, "n": len(g["items"])})
+        notify.send_on(phone, channel, msg)
+        sent.append({"phone": phone, "channel": channel, "n": len(g["items"])})
     return sent
 
 
@@ -37,12 +40,12 @@ def _yesterday(now: datetime):
 
 
 def build_assigner_digests(now: datetime | None = None) -> list[dict]:
-    """Reporta o dia anterior para cada assignante. Só envia se houver algo."""
+    """Reporta o dia anterior para cada (assignante, canal). Só envia se houver algo."""
     now = now or config.now()
     y = _yesterday(now)
 
     concluidas = db.query_all(
-        """SELECT u.whatsapp_phone AS phone, u.name AS assigner_name,
+        """SELECT u.whatsapp_phone AS phone, u.name AS assigner_name, t.channel,
                   t.code, t.title, c.name AS assignee_name,
                   t.original_due_date,
                   ((t.completed_at AT TIME ZONE %s)::date - t.original_due_date) AS atraso_dias
@@ -56,7 +59,7 @@ def build_assigner_digests(now: datetime | None = None) -> list[dict]:
 
     reprogramadas = db.query_all(
         """SELECT DISTINCT ON (t.id)
-                  u.whatsapp_phone AS phone, u.name AS assigner_name,
+                  u.whatsapp_phone AS phone, u.name AS assigner_name, t.channel,
                   t.code, t.title, c.name AS assignee_name,
                   t.original_due_date, e.new_due_date, e.summary AS justificativa
              FROM task_events e
@@ -70,7 +73,7 @@ def build_assigner_digests(now: datetime | None = None) -> list[dict]:
     )
 
     atrasadas = db.query_all(
-        """SELECT u.whatsapp_phone AS phone, u.name AS assigner_name,
+        """SELECT u.whatsapp_phone AS phone, u.name AS assigner_name, t.channel,
                   t.code, t.title, c.name AS assignee_name, t.current_due_date
              FROM tasks t
              JOIN users u ON u.id = t.assigner_user_id
@@ -83,17 +86,23 @@ def build_assigner_digests(now: datetime | None = None) -> list[dict]:
         (y, _TZ, y),
     )
 
-    phones: dict[str, dict] = {}
+    keys: dict[tuple, dict] = {}
+    def _bucket(r):
+        return keys.setdefault(
+            (r["phone"], r["channel"]),
+            {"name": r["assigner_name"], "c": [], "r": [], "a": []},
+        )
     for r in concluidas:
-        phones.setdefault(r["phone"], {"name": r["assigner_name"], "c": [], "r": [], "a": []})["c"].append(r)
+        _bucket(r)["c"].append(r)
     for r in reprogramadas:
-        phones.setdefault(r["phone"], {"name": r["assigner_name"], "c": [], "r": [], "a": []})["r"].append(r)
+        _bucket(r)["r"].append(r)
     for r in atrasadas:
-        phones.setdefault(r["phone"], {"name": r["assigner_name"], "c": [], "r": [], "a": []})["a"].append(r)
+        _bucket(r)["a"].append(r)
 
     sent = []
-    for phone, g in phones.items():
+    for (phone, channel), g in keys.items():
         msg = templates.assigner_daily(g["name"], g["c"], g["r"], g["a"])
-        notify.send(phone, msg)
-        sent.append({"phone": phone, "concluidas": len(g["c"]), "reprogramadas": len(g["r"]), "atrasadas": len(g["a"])})
+        notify.send_on(phone, channel, msg)
+        sent.append({"phone": phone, "channel": channel,
+                     "concluidas": len(g["c"]), "reprogramadas": len(g["r"]), "atrasadas": len(g["a"])})
     return sent

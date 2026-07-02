@@ -163,7 +163,7 @@ def test_dynamic_inject_phone_context(monkeypatch):
 
 # ---------- Reenvio + honestidade de entrega ----------
 
-def _fake_task_row(status="pendente"):
+def _fake_task_row(status="pendente", channel="whatsapp"):
     from datetime import date
     return {
         "id": "task-uuid",
@@ -172,6 +172,7 @@ def _fake_task_row(status="pendente"):
         "description": None,
         "current_due_date": date(2026, 7, 4),
         "status": status,
+        "channel": channel,
         "assignee_name": "Lívia",
         "assignee_phone": "5562988887777",
         "assigner_name": "Leonardo",
@@ -184,8 +185,8 @@ def test_resend_task_sem_canal_registra_nota(monkeypatch):
 
     events = []
     monkeypatch.setattr(tasks.db, "query_one", lambda *a, **k: _fake_task_row())
-    monkeypatch.setattr(tasks.notify, "targets", lambda phone: [])
-    monkeypatch.setattr(tasks.notify, "send", lambda phone, msg: False)
+    monkeypatch.setattr(tasks.notify, "channel_targets", lambda phone, channel: [])
+    monkeypatch.setattr(tasks.notify, "send_on", lambda phone, channel, msg: False)
 
     class FakeCur:
         def __enter__(self): return self
@@ -196,6 +197,7 @@ def test_resend_task_sem_canal_registra_nota(monkeypatch):
     res = tasks.resend_task("TM-1002", requester_phone="5562993119454")
     assert res["sent"] is False
     assert res["had_targets"] is False
+    assert res["channel"] == "whatsapp"
     assert events == [("nota", "sistema")]
 
 
@@ -220,12 +222,13 @@ def test_resend_task_nao_encontrada(monkeypatch):
     assert res["error"] == "task_not_found"
 
 
-def test_resend_task_entregue(monkeypatch):
+def test_resend_task_entregue_no_canal_da_tarefa(monkeypatch):
     from taskme.services import tasks
     events = []
-    monkeypatch.setattr(tasks.db, "query_one", lambda *a, **k: _fake_task_row())
-    monkeypatch.setattr(tasks.notify, "targets", lambda phone: ["telegram:42"])
-    monkeypatch.setattr(tasks.notify, "send", lambda phone, msg: True)
+    sends = []
+    monkeypatch.setattr(tasks.db, "query_one", lambda *a, **k: _fake_task_row(channel="telegram"))
+    monkeypatch.setattr(tasks.notify, "channel_targets", lambda phone, channel: ["telegram:42"])
+    monkeypatch.setattr(tasks.notify, "send_on", lambda phone, channel, msg: sends.append((phone, channel)) or True)
 
     class FakeCur:
         def __enter__(self): return self
@@ -235,4 +238,70 @@ def test_resend_task_entregue(monkeypatch):
 
     res = tasks.resend_task("TM-1002", requester_phone="5562993119454")
     assert res["sent"] is True
+    assert res["channel"] == "telegram"
+    # entregou no canal da tarefa (telegram), não em broadcast
+    assert sends == [("5562988887777", "telegram")]
     assert events == [("enviada", "sistema")]
+
+
+# ---------- Escopo por canal ----------
+
+def test_channel_targets_isola_canal(monkeypatch):
+    from taskme import notify
+    monkeypatch.setattr(notify.channels, "addresses",
+                        lambda phone, platforms: [{"platform": "telegram", "address": "42"}])
+    assert notify.channel_targets("5562993119454", "whatsapp") == [
+        "whatsapp:5562993119454@s.whatsapp.net"]
+    assert notify.channel_targets("5562993119454", "telegram") == ["telegram:42"]
+    assert notify.channel_targets("5562993119454", "sms") == []
+
+
+def test_send_on_entrega_so_no_canal(monkeypatch):
+    from types import SimpleNamespace
+    from taskme import notify
+    calls = []
+    monkeypatch.setattr(notify.config, "HERMES_SEND_CMD", "hermes send")
+    monkeypatch.setattr(notify.channels, "addresses",
+                        lambda phone, platforms: [{"platform": "telegram", "address": "42"}])
+    monkeypatch.setattr(notify.subprocess, "run",
+                        lambda cmd, **k: calls.append(cmd) or SimpleNamespace(returncode=0))
+    assert notify.send_on("5562993119454", "whatsapp", "oi") is True
+    # só o alvo whatsapp foi acionado, telegram não
+    assert calls == [["hermes", "send", "--to", "whatsapp:5562993119454@s.whatsapp.net", "oi"]]
+
+
+def test_query_tasks_filtra_por_canal(monkeypatch):
+    from taskme.services import queries
+    captured = {}
+    monkeypatch.setattr(queries, "normalize_phone", lambda p: p)
+    monkeypatch.setattr(queries.config, "today", lambda: __import__("datetime").date(2026, 7, 2))
+    def fake_query_all(sql, params):
+        captured["sql"] = sql
+        captured["params"] = params
+        return []
+    monkeypatch.setattr(queries.db, "query_all", fake_query_all)
+    queries.query_tasks("5562993119454", "assignee", channel="whatsapp")
+    assert "t.channel = %s" in captured["sql"]
+    assert "whatsapp" in captured["params"]
+
+
+def test_channel_from_platform():
+    from taskme.identity import channel_from_platform
+    assert channel_from_platform("telegram") == "telegram"
+    assert channel_from_platform("TELEGRAM") == "telegram"
+    assert channel_from_platform("whatsapp") == "whatsapp"
+    assert channel_from_platform("") == "whatsapp"
+    assert channel_from_platform(None) == "whatsapp"
+
+
+def test_charges_open_charge_escopa_canal(monkeypatch):
+    from taskme.services import charges
+    captured = {}
+    def fake_query_one(sql, params):
+        captured["sql"] = sql
+        captured["params"] = params
+        return None
+    monkeypatch.setattr(charges.db, "query_one", fake_query_one)
+    charges.has_open_charge("5562993119454", "telegram")
+    assert "q.channel = %s" in captured["sql"]
+    assert "telegram" in captured["params"]

@@ -39,11 +39,24 @@ def targets(phone: str) -> list[str]:
     return result
 
 
-def send(phone: str, text: str) -> bool:
-    """Envia para todos os endpoints habilitados; sucesso se ao menos um entregar."""
+def channel_targets(phone: str, channel: str) -> list[str]:
+    """Destinos da pessoa em UM único canal (o canal da tarefa)."""
+    channel = (channel or "").strip().lower()
+    if channel == "whatsapp":
+        return [whatsapp_target(phone)]
+    if channel == "telegram":
+        return [
+            telegram_target(row["address"])
+            for row in channels.addresses(phone, ("telegram",))
+        ]
+    return []
+
+
+def _deliver(targets_list: list[str], text: str) -> bool:
+    """Dispara o texto exato para cada alvo; sucesso se ao menos um entregar."""
     base = shlex.split(config.HERMES_SEND_CMD)
     delivered = False
-    for target in targets(phone):
+    for target in targets_list:
         try:
             proc = subprocess.run(
                 [*base, "--to", target, text], capture_output=True, text=True, timeout=30
@@ -52,3 +65,13 @@ def send(phone: str, text: str) -> bool:
         except Exception:
             continue
     return delivered
+
+
+def send(phone: str, text: str) -> bool:
+    """Envia para todos os endpoints habilitados; sucesso se ao menos um entregar."""
+    return _deliver(targets(phone), text)
+
+
+def send_on(phone: str, channel: str, text: str) -> bool:
+    """Envia SOMENTE pelo canal indicado (o canal da tarefa)."""
+    return _deliver(channel_targets(phone, channel), text)

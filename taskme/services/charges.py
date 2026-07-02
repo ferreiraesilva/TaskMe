@@ -1,10 +1,13 @@
-"""Cobrança no vencimento + fila 1-pergunta-por-vez por telefone.
+"""Cobrança no vencimento + fila 1-pergunta-por-vez por (telefone, canal).
 
 Regras:
 - No dia (e depois, se não respondida) cobra a tarefa vencida.
-- 1 pergunta aberta por telefone: se já há cobrança aguardando resposta para
-  aquele telefone, repica a MESMA tarefa (1×/dia) e não inicia outra.
-- Quando o assignado responde, registra e dispara a próxima cobrança do telefone.
+- 1 pergunta aberta por (telefone, canal): se já há cobrança aguardando
+  resposta para aquele telefone naquele canal, repica a MESMA tarefa (1×/dia)
+  e não inicia outra. A mesma pessoa pode ter cobrança aberta no WhatsApp e
+  outra no Telegram simultaneamente (canais são escopos separados).
+- Quando o assignado responde, registra e dispara a próxima cobrança do
+  telefone naquele canal.
 """
 from __future__ import annotations
 
@@ -18,48 +21,52 @@ from . import tasks as tasks_svc
 
 
 # ---------- leitura de estado ----------
-def _open_charge_for_phone(phone: str) -> dict | None:
-    """Cobrança aguardando resposta (tarefa ainda pendente) para o telefone."""
+def _open_charge_for_phone(phone: str, channel: str | None = None) -> dict | None:
+    """Cobrança aguardando resposta (tarefa ainda pendente) para o telefone,
+    opcionalmente escopada a um canal."""
+    ch_clause = " AND q.channel = %s" if channel else ""
+    params = (phone, channel) if channel else (phone,)
     return db.query_one(
-        """SELECT q.id AS queue_id, t.id AS task_id, t.code, t.title
+        f"""SELECT q.id AS queue_id, t.id AS task_id, t.code, t.title, t.channel
              FROM interaction_queue q
              JOIN tasks t ON t.id = q.task_id
             WHERE q.contact_phone = %s AND q.status = 'aguardando_resposta'
-              AND t.status = 'pendente'
+              AND t.status = 'pendente'{ch_clause}
             LIMIT 1""",
-        (phone,),
+        params,
     )
 
 
-def has_open_charge(phone: str) -> bool:
-    return _open_charge_for_phone(normalize_phone(phone)) is not None
+def has_open_charge(phone: str, channel: str | None = None) -> bool:
+    return _open_charge_for_phone(normalize_phone(phone), channel) is not None
 
 
-def route_inbound(phone: str) -> str:
-    """Decisão do hook: 'skip' se há cobrança aberta p/ o telefone; senão 'allow'."""
-    return "skip" if has_open_charge(phone) else "allow"
+def route_inbound(phone: str, channel: str | None = None) -> str:
+    """Decisão do hook: 'skip' se há cobrança aberta p/ o telefone (naquele
+    canal, se informado); senão 'allow'."""
+    return "skip" if has_open_charge(phone, channel) else "allow"
 
 
 # ---------- envio ----------
-def _send_charge(phone: str, contact_name: str, code: str, title: str, task_id: str) -> None:
-    notify.send(phone, templates.due_charge(contact_name, code, title))
+def _send_charge(phone: str, channel: str, contact_name: str, code: str, title: str, task_id: str) -> None:
+    notify.send_on(phone, channel, templates.due_charge(contact_name, code, title))
     with db.transaction() as cur:
         add_event(cur, task_id, "cobranca", "sistema", f"cobrança enviada ({code})")
 
 
-def _start_charge_for_phone(phone: str, now: datetime) -> dict | None:
-    """Inicia a cobrança da tarefa vencida mais antiga do telefone (sem pergunta
-    aberta). Cria/garante a linha de fila e envia. Retorna {phone, code} ou None."""
+def _start_charge_for_phone(phone: str, channel: str, now: datetime) -> dict | None:
+    """Inicia a cobrança da tarefa vencida mais antiga do telefone naquele canal
+    (sem pergunta aberta). Cria/garante a linha de fila e envia."""
     today = now.date()
     task = db.query_one(
-        """SELECT t.id, t.code, t.title, c.name AS cname
+        """SELECT t.id, t.code, t.title, t.channel, c.name AS cname
              FROM tasks t
              JOIN contacts c ON c.id = t.assignee_contact_id
-            WHERE c.whatsapp_phone = %s AND t.status = 'pendente'
+            WHERE c.whatsapp_phone = %s AND t.channel = %s AND t.status = 'pendente'
               AND t.current_due_date <= %s
             ORDER BY t.current_due_date
             LIMIT 1""",
-        (phone, today),
+        (phone, channel, today),
     )
     if not task:
         return None
@@ -79,42 +86,41 @@ def _start_charge_for_phone(phone: str, now: datetime) -> dict | None:
             )
         else:
             cur.execute(
-                """INSERT INTO interaction_queue (contact_phone, task_id, status, sent_at)
-                   VALUES (%s,%s,'aguardando_resposta', now())""",
-                (phone, task["id"]),
+                """INSERT INTO interaction_queue (contact_phone, task_id, channel, status, sent_at)
+                   VALUES (%s,%s,%s,'aguardando_resposta', now())""",
+                (phone, task["id"], channel),
             )
-    _send_charge(phone, task["cname"], task["code"], task["title"], task["id"])
-    return {"phone": phone, "code": task["code"]}
+    _send_charge(phone, task["channel"], task["cname"], task["code"], task["title"], task["id"])
+    return {"phone": phone, "channel": channel, "code": task["code"]}
 
 
 def build_due_charges(now: datetime | None = None) -> list[dict]:
-    """Roda diariamente (cron). Para cada telefone com tarefa vencida e pendente:
-    repica a pergunta aberta (1×/dia) ou inicia a tarefa mais antiga."""
+    """Roda diariamente (cron). Para cada (telefone, canal) com tarefa vencida e
+    pendente: repica a pergunta aberta (1×/dia) ou inicia a tarefa mais antiga."""
     now = now or config.now()
     today = now.date()
-    phones = db.query_all(
-        """SELECT DISTINCT c.whatsapp_phone AS phone
+    pairs = db.query_all(
+        """SELECT DISTINCT c.whatsapp_phone AS phone, t.channel AS channel
              FROM tasks t JOIN contacts c ON c.id = t.assignee_contact_id
             WHERE t.status='pendente' AND t.current_due_date <= %s""",
         (today,),
     )
     sent: list[dict] = []
-    for p in phones:
-        phone = p["phone"]
-        openc = _open_charge_for_phone(phone)
+    for pair in pairs:
+        phone, channel = pair["phone"], pair["channel"]
+        openc = _open_charge_for_phone(phone, channel)
         if openc:  # repique da mesma tarefa
-            # nome do contato p/ template
             c = db.query_one(
                 "SELECT name FROM contacts WHERE whatsapp_phone=%s LIMIT 1", (phone,)
             )
-            _send_charge(phone, c["name"] if c else "", openc["code"], openc["title"], openc["task_id"])
+            _send_charge(phone, channel, c["name"] if c else "", openc["code"], openc["title"], openc["task_id"])
             with db.transaction() as cur:
                 cur.execute(
                     "UPDATE interaction_queue SET sent_at=now() WHERE id=%s", (openc["queue_id"],)
                 )
-            sent.append({"phone": phone, "code": openc["code"], "repique": True})
+            sent.append({"phone": phone, "channel": channel, "code": openc["code"], "repique": True})
         else:
-            r = _start_charge_for_phone(phone, now)
+            r = _start_charge_for_phone(phone, channel, now)
             if r:
                 sent.append(r)
     return sent
@@ -124,6 +130,7 @@ def build_due_charges(now: datetime | None = None) -> list[dict]:
 def handle_reply(
     phone: str,
     outcome: str,
+    channel: str | None = None,
     task_code: str | None = None,
     new_due=None,
     justification: str | None = None,
@@ -131,7 +138,8 @@ def handle_reply(
     now: datetime | None = None,
 ) -> dict:
     """Processa a resposta a uma cobrança. outcome: 'done' | 'reprogram'.
-    Fecha a fila e dispara a próxima cobrança do telefone (serialização)."""
+    Escopada ao canal (quando informado). Fecha a fila e dispara a próxima
+    cobrança do telefone naquele canal (serialização)."""
     now = now or config.now()
     p = normalize_phone(phone)
 
@@ -148,21 +156,22 @@ def handle_reply(
             return {"error": "task_not_found"}
         code, queue_id = row["code"], row.get("queue_id")
     else:
-        openc = _open_charge_for_phone(p)
+        openc = _open_charge_for_phone(p, channel)
         if not openc:
             return {"error": "no_open_charge"}
         code, queue_id = openc["code"], openc["queue_id"]
 
-    # Carrega info da tarefa para notificar o assigner
+    # Carrega info da tarefa para notificar o assigner (no canal da tarefa)
     task_info = db.query_one(
         """SELECT u.whatsapp_phone AS assigner_phone, u.name AS assigner_name,
-                  c.name AS assignee_name, t.title
+                  c.name AS assignee_name, t.title, t.channel
              FROM tasks t
              JOIN users u ON u.id = t.assigner_user_id
              JOIN contacts c ON c.id = t.assignee_contact_id
             WHERE t.code = %s""",
         (code,),
     )
+    task_channel = task_info["channel"] if task_info else (channel or "whatsapp")
 
     assigner_msg = None
     if outcome == "done":
@@ -194,10 +203,10 @@ def handle_reply(
                 (queue_id,),
             )
 
-    # ack para o assignado + notificação em tempo real ao assigner
-    notify.send(p, ack)
+    # ack para o assignado + notificação em tempo real ao assigner, ambos no canal da tarefa
+    notify.send_on(p, task_channel, ack)
     if task_info and task_info.get("assigner_phone") and assigner_msg:
-        notify.send(task_info["assigner_phone"], assigner_msg)
+        notify.send_on(task_info["assigner_phone"], task_channel, assigner_msg)
 
-    nxt = _start_charge_for_phone(p, now)
+    nxt = _start_charge_for_phone(p, task_channel, now)
     return {"ok": True, "code": code, "ack": ack, "next_charge": nxt}

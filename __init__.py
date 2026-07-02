@@ -31,10 +31,12 @@ def _on_session_start(session_id: str, platform: str, user_id: str, **kwargs) ->
 def _inject_phone_context(session_id: str, **kwargs) -> dict | None:
     """pre_llm_call: injeta o telefone e avisa se há cobrança pendente."""
     metadata = _session_metadata.get(session_id)
+    channel = None
     if metadata:
         platform, user_id = metadata
-        from .taskme.identity import resolve
+        from .taskme.identity import channel_from_platform, resolve
         phone = resolve(platform, user_id)
+        channel = channel_from_platform(platform)
     else:
         phone = _session_phones.get(session_id)
 
@@ -46,7 +48,7 @@ def _inject_phone_context(session_id: str, **kwargs) -> dict | None:
 
     try:
         from .taskme.services.charges import has_open_charge
-        pending = has_open_charge(phone)
+        pending = has_open_charge(phone, channel)
     except Exception:
         pending = False
     pending_note = (
@@ -54,10 +56,16 @@ def _inject_phone_context(session_id: str, **kwargs) -> dict | None:
         "Se a mensagem for sobre outro assunto, responda normalmente. "
         "Se ela indicar que concluiu ou quiser um novo prazo, chame taskme_responder."
     ) if pending else ""
+    channel_note = (
+        f"\n[TaskMe] Canal desta conversa: {channel}. Passe este valor EXATO no "
+        f"parâmetro 'channel' de taskme_propor_tarefa, taskme_criar_tarefa e "
+        f"taskme_consultar — a tarefa fica escopada nesse meio de comunicação."
+    ) if channel else ""
     return {
         "context": (
             f"[TaskMe] Identidade canônica do remetente desta mensagem: {phone}\n"
-            f"Use este valor no parâmetro owner_phone/phone das ferramentas taskme_*.{pending_note}"
+            f"Use este valor no parâmetro owner_phone/phone das ferramentas taskme_*."
+            f"{channel_note}{pending_note}"
         )
     }
 
