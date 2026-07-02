@@ -7,7 +7,7 @@ Branch de trabalho: `feature/taskme-v1` (merge na `main` + tag ao validar).
 ## Ambiente / acessos
 
 - Repo local: `D:\Projetos\Hermes\TaskMe` (Windows). Remote: github.com/ferreiraesilva/TaskMe.
-- Host Hermes (homolog): SSH `leonardo@192.168.100.125` (mac02); Hermes rodando em container `hermes-leonardo-pessoal-hml`.
+- Host Hermes (homolog): SSH `leonardo@192.168.100.120` (mac02); Hermes rodando em container `hermes-leonardo-pessoal-hml`.
 - Banco: Postgres local `postgres-hml` em mac02 (127.0.0.1:5432). DATABASE_URL gerada pelo `deploy-instance.sh` do hermes-infra.
 - Deploy gerenciado por [`hermes-infra`](https://github.com/ferreiraesilva/hermes-infra): `./scripts/deploy-instance.sh hml leonardo-pessoal`.
 
