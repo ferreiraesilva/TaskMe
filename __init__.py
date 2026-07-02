@@ -111,10 +111,15 @@ def register(ctx) -> None:
         schema=schemas.AJUDA, handler=tools.taskme_ajuda,
         description="Envia manual do TaskMe ao remetente pelo canal disponível.",
     )
+    ctx.register_tool(
+        name="taskme_reenviar", toolset="taskme",
+        schema=schemas.REENVIAR, handler=tools.taskme_reenviar,
+        description="Reenvia a notificação de uma tarefa existente ao assignado.",
+    )
 
     # --- Hooks ---
     ctx.register_hook("on_session_start", _on_session_start)
     ctx.register_hook("pre_llm_call", _inject_phone_context)
     ctx.register_hook("pre_gateway_dispatch", hook.handle_gateway)
 
-    log.info("TaskMe plugin registrado: 9 ferramentas + 3 hooks")
+    log.info("TaskMe plugin registrado: 10 ferramentas + 3 hooks")

@@ -103,9 +103,13 @@ def commit_task(
     msg = templates.task_message(
         contact["name"], owner.get("name") or "a equipe", code, title, description, d
     )
+    had_targets = bool(notify.targets(contact["whatsapp_phone"]))
     sent = notify.send(contact["whatsapp_phone"], msg)
     with db.transaction() as cur:
-        add_event(cur, task_id, "enviada", "sistema", "tarefa enviada ao assignado")
+        if sent:
+            add_event(cur, task_id, "enviada", "sistema", "tarefa enviada ao assignado")
+        else:
+            add_event(cur, task_id, "nota", "sistema", "envio não entregue (canal indisponível)")
 
     return {
         "ok": True,
@@ -114,7 +118,56 @@ def commit_task(
         "assignee_phone": contact["whatsapp_phone"],
         "due_fmt": templates.fmt_date(d),
         "sent": sent,
+        "had_targets": had_targets,
         "message": msg,
+    }
+
+
+def resend_task(task_code: str, requester_phone: str | None = None) -> dict:
+    """Reenvia a notificação de uma tarefa existente ao assignado.
+
+    Só o assignante (criador) pode reenviar. Grava evento no histórico e
+    retorna o resultado de entrega — `had_targets` distingue "sem canal ativo"
+    de "falha no gateway".
+    """
+    task = db.query_one(
+        """SELECT t.id, t.code, t.title, t.description, t.current_due_date, t.status,
+                  c.name AS assignee_name, c.whatsapp_phone AS assignee_phone,
+                  u.name AS assigner_name, u.whatsapp_phone AS assigner_phone
+             FROM tasks t
+             JOIN contacts c ON c.id = t.assignee_contact_id
+             JOIN users u ON u.id = t.assigner_user_id
+            WHERE t.code = %s""",
+        (task_code,),
+    )
+    if not task:
+        return {"error": "task_not_found"}
+    if requester_phone and normalize_phone(requester_phone) != normalize_phone(
+        task["assigner_phone"]
+    ):
+        return {"error": "not_authorized"}
+    if str(task["status"]) == "concluida":
+        return {"error": "task_completed"}
+
+    d = _to_date(task["current_due_date"])
+    msg = templates.task_message(
+        task["assignee_name"], task["assigner_name"] or "a equipe",
+        task["code"], task["title"], task.get("description"), d,
+    )
+    had_targets = bool(notify.targets(task["assignee_phone"]))
+    sent = notify.send(task["assignee_phone"], msg)
+    with db.transaction() as cur:
+        if sent:
+            add_event(cur, task["id"], "enviada", "sistema", "tarefa reenviada ao assignado")
+        else:
+            add_event(cur, task["id"], "nota", "sistema", "reenvio não entregue (canal indisponível)")
+
+    return {
+        "ok": True,
+        "code": task["code"],
+        "assignee_name": task["assignee_name"],
+        "sent": sent,
+        "had_targets": had_targets,
     }
 
 

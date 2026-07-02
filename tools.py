@@ -108,13 +108,73 @@ def taskme_criar_tarefa(args: dict, **kwargs) -> str:
         if result.get("error"):
             return _ok({"status": "error", "message": result["error"]})
 
+        if result.get("sent"):
+            return _ok({
+                "status": "ok",
+                "code": result["code"],
+                "message": f"Tarefa {result['code']} criada e enviada para {result['assignee_name']} ✓",
+            })
+
+        # Criada, mas a notificação não chegou ao assignado.
+        reason = (
+            "a pessoa ainda não iniciou uma conversa com o bot neste canal"
+            if not result.get("had_targets")
+            else "o canal de envio falhou"
+        )
         return _ok({
-            "status": "ok",
+            "status": "created_not_sent",
             "code": result["code"],
-            "message": f"Tarefa {result['code']} criada e enviada para {result['assignee_name']} ✓",
+            "message": (
+                f"⚠️ Criei a tarefa {result['code']}, mas *não consegui entregar* para "
+                f"{result['assignee_name']} — {reason}. A tarefa está salva. "
+                f"Quando a pessoa estiver disponível no canal, peça "
+                f"\"reenviar {result['code']}\" que eu mando de novo."
+            ),
         })
     except Exception as e:
         log.exception("taskme_criar_tarefa")
+        return _ok({"status": "error", "message": str(e)})
+
+
+def taskme_reenviar(args: dict, **kwargs) -> str:
+    try:
+        task_code = (args.get("task_code") or "").strip().upper()
+        phone = normalize_phone(args.get("phone") or "")
+
+        if not task_code:
+            return _ok({"status": "error", "message": "task_code obrigatório."})
+
+        result = tasks.resend_task(task_code, requester_phone=phone or None)
+
+        err = result.get("error")
+        if err == "task_not_found":
+            return _ok({"status": "error", "message": f"Não encontrei a tarefa {task_code}."})
+        if err == "not_authorized":
+            return _ok({"status": "error", "message": "Só quem criou a tarefa pode reenviá-la."})
+        if err == "task_completed":
+            return _ok({"status": "error", "message": f"A tarefa {task_code} já está concluída — não há o que reenviar."})
+        if err:
+            return _ok({"status": "error", "message": err})
+
+        if result.get("sent"):
+            return _ok({
+                "status": "ok",
+                "message": f"Reenviei a tarefa {task_code} para {result['assignee_name']} ✓",
+            })
+
+        reason = (
+            "a pessoa ainda não iniciou uma conversa com o bot neste canal"
+            if not result.get("had_targets")
+            else "o canal de envio falhou"
+        )
+        return _ok({
+            "status": "not_sent",
+            "message": (
+                f"⚠️ Ainda não consegui entregar a {task_code} para {result['assignee_name']} — {reason}."
+            ),
+        })
+    except Exception as e:
+        log.exception("taskme_reenviar")
         return _ok({"status": "error", "message": str(e)})
 
 

@@ -159,3 +159,80 @@ def test_dynamic_inject_phone_context(monkeypatch):
     
     # Restore original sys.modules["taskme"] for other tests
     sys.modules["taskme"] = taskme_sub
+
+
+# ---------- Reenvio + honestidade de entrega ----------
+
+def _fake_task_row(status="pendente"):
+    from datetime import date
+    return {
+        "id": "task-uuid",
+        "code": "TM-1002",
+        "title": "Enviar o contrato",
+        "description": None,
+        "current_due_date": date(2026, 7, 4),
+        "status": status,
+        "assignee_name": "Lívia",
+        "assignee_phone": "5562988887777",
+        "assigner_name": "Leonardo",
+        "assigner_phone": "5562993119454",
+    }
+
+
+def test_resend_task_sem_canal_registra_nota(monkeypatch):
+    from taskme.services import tasks
+
+    events = []
+    monkeypatch.setattr(tasks.db, "query_one", lambda *a, **k: _fake_task_row())
+    monkeypatch.setattr(tasks.notify, "targets", lambda phone: [])
+    monkeypatch.setattr(tasks.notify, "send", lambda phone, msg: False)
+
+    class FakeCur:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+    monkeypatch.setattr(tasks.db, "transaction", lambda: FakeCur())
+    monkeypatch.setattr(tasks, "add_event", lambda cur, tid, typ, actor, summary=None, **k: events.append((typ, actor)))
+
+    res = tasks.resend_task("TM-1002", requester_phone="5562993119454")
+    assert res["sent"] is False
+    assert res["had_targets"] is False
+    assert events == [("nota", "sistema")]
+
+
+def test_resend_task_autoriza_so_criador(monkeypatch):
+    from taskme.services import tasks
+    monkeypatch.setattr(tasks.db, "query_one", lambda *a, **k: _fake_task_row())
+    res = tasks.resend_task("TM-1002", requester_phone="5562000000000")
+    assert res["error"] == "not_authorized"
+
+
+def test_resend_task_concluida(monkeypatch):
+    from taskme.services import tasks
+    monkeypatch.setattr(tasks.db, "query_one", lambda *a, **k: _fake_task_row(status="concluida"))
+    res = tasks.resend_task("TM-1002", requester_phone="5562993119454")
+    assert res["error"] == "task_completed"
+
+
+def test_resend_task_nao_encontrada(monkeypatch):
+    from taskme.services import tasks
+    monkeypatch.setattr(tasks.db, "query_one", lambda *a, **k: None)
+    res = tasks.resend_task("TM-9999")
+    assert res["error"] == "task_not_found"
+
+
+def test_resend_task_entregue(monkeypatch):
+    from taskme.services import tasks
+    events = []
+    monkeypatch.setattr(tasks.db, "query_one", lambda *a, **k: _fake_task_row())
+    monkeypatch.setattr(tasks.notify, "targets", lambda phone: ["telegram:42"])
+    monkeypatch.setattr(tasks.notify, "send", lambda phone, msg: True)
+
+    class FakeCur:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+    monkeypatch.setattr(tasks.db, "transaction", lambda: FakeCur())
+    monkeypatch.setattr(tasks, "add_event", lambda cur, tid, typ, actor, summary=None, **k: events.append((typ, actor)))
+
+    res = tasks.resend_task("TM-1002", requester_phone="5562993119454")
+    assert res["sent"] is True
+    assert events == [("enviada", "sistema")]

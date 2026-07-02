@@ -259,6 +259,33 @@ AJUDA = {
     },
 }
 
+REENVIAR = {
+    "name": "taskme_reenviar",
+    "description": (
+        "Reenvia a notificação de uma tarefa já existente ao assignado. "
+        "Use quando o assignante disser que a pessoa NÃO recebeu a tarefa, "
+        "ou pedir para 'reenviar', 'mandar de novo', 'reencaminhar' uma TM-XXXX. "
+        "Só o criador da tarefa pode reenviá-la."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "task_code": {
+                "type": "string",
+                "description": "Código da tarefa a reenviar (ex: TM-1002).",
+            },
+            "phone": {
+                "type": "string",
+                "description": (
+                    "Número WhatsApp do remetente (apenas dígitos, sem +). "
+                    "Usado para autorizar — só o assignante que criou a tarefa pode reenviar."
+                ),
+            },
+        },
+        "required": ["task_code"],
+    },
+}
+
 RESPONDER = {
     "name": "taskme_responder",
     "description": (
