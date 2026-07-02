@@ -33,7 +33,7 @@ O script:
 
 | | Homolog (hml) | Produção (prd) |
 |---|---|---|
-| Host | mac02 (192.168.100.125) | solid (177.135.249.173) |
+| Host | mac02 (192.168.100.120) | solid (177.135.249.173) |
 | Postgres | `postgres-hml` (127.0.0.1:5432) | `postgres-prd` (127.0.0.1:5432) |
 | Deploy | Manual via script | GitHub Actions (`hermes-infra`) |
 | Dados | Seed fictício na 1ª criação | Base limpa, sem seed |
