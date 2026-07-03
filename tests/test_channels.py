@@ -359,3 +359,33 @@ def test_request_new_due_sem_cobranca(monkeypatch):
     from taskme.services import charges
     monkeypatch.setattr(charges.db, "query_one", lambda sql, params: None)
     assert charges.request_new_due("556299299266", "whatsapp") == "defer"
+
+
+# ---------- BUG-0002: identidade WhatsApp por LID ----------
+
+def test_resolve_whatsapp_lid_usa_channel_link(monkeypatch):
+    from taskme import identity
+    monkeypatch.setattr(
+        identity.channels, "phone_for",
+        lambda platform, addr: "5562988887777" if addr == "236657060135090@lid" else "",
+    )
+    # LID conhecido -> telefone vinculado; LID desconhecido -> "" (dispara onboarding)
+    assert identity.resolve("whatsapp", "236657060135090@lid") == "5562988887777"
+    assert identity.resolve("whatsapp", "999999@lid") == ""
+
+
+def test_resolve_whatsapp_lid_nao_vira_telefone(monkeypatch):
+    from taskme import identity
+    # Garante que os dígitos do LID NÃO são usados como telefone
+    monkeypatch.setattr(identity.channels, "phone_for", lambda platform, addr: "")
+    linked = []
+    monkeypatch.setattr(identity.channels, "link", lambda *a: linked.append(a))
+    assert identity.resolve("whatsapp", "236657060135090@lid") == ""
+    assert linked == []  # não vincula LID como se fosse telefone
+
+
+def test_resolve_whatsapp_phone_jid_inalterado(monkeypatch):
+    from taskme import identity
+    monkeypatch.setattr(identity.channels, "link", lambda *a: None)
+    # JID de telefone normal continua resolvendo pelo número (comportamento atual)
+    assert identity.resolve("whatsapp", "5562988887777@s.whatsapp.net") == "5562988887777"

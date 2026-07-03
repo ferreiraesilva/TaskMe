@@ -10,6 +10,14 @@ def resolve(platform: str, user_id: str) -> str:
     platform = (platform or "").lower()
     user_id = str(user_id or "").strip()
     if "whatsapp" in platform:
+        # Não-contato endereçado por LID que o bridge não resolveu para telefone:
+        # NUNCA tratar os dígitos do LID como telefone. Resolve pelo vínculo de
+        # canal (preenchido no onboarding); vazio = desconhecido -> onboarding.
+        if "@lid" in user_id:
+            try:
+                return channels.phone_for("whatsapp", user_id)
+            except Exception:
+                return ""
         try:
             from gateway.whatsapp_identity import normalize_whatsapp_identifier
             phone = normalize_whatsapp_identifier(user_id)

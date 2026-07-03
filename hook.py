@@ -84,9 +84,10 @@ def handle_gateway(event, **kwargs) -> dict | None:
 
         phone = resolve(platform, user_id) if (platform and user_id) else ""
 
-        # Se o remetente não tiver telefone vinculado ainda, tentamos vincular dinamicamente
-        # caso ele envie um contato ou um número de telefone
-        if not phone and platform == "telegram" and user_id:
+        # Se o remetente não tiver telefone vinculado ainda, tentamos vincular
+        # dinamicamente caso ele envie um contato ou um número. Vale para Telegram
+        # e para WhatsApp por LID (não-contato cujo telefone o bridge não resolveu).
+        if not phone and platform in ("telegram", "whatsapp") and user_id:
             text = (getattr(event, "text", None) or "").strip()
             new_phone = None
             name = None
@@ -105,10 +106,11 @@ def handle_gateway(event, **kwargs) -> dict | None:
                     new_phone = clean_num
 
             if new_phone:
-                channels.link(new_phone, "telegram", user_id)
+                channels.link(new_phone, platform, user_id)
                 # Garante que o usuário existe na tabela users
-                contacts.get_or_create_user(new_phone, name or "Telegram User")
-                log.info("taskme: linked Telegram user %s to phone %s", user_id, new_phone)
+                default_name = "Telegram User" if platform == "telegram" else "WhatsApp User"
+                contacts.get_or_create_user(new_phone, name or default_name)
+                log.info("taskme: linked %s user %s to phone %s", platform, user_id, new_phone)
                 phone = new_phone
 
         if not phone:
