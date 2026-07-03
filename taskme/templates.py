@@ -88,6 +88,14 @@ def due_charge(assignee_name: str, code: str, title: str) -> str:
     )
 
 
+def ask_new_due(code: str) -> str:
+    """Pergunta a nova data quando o assignado sinaliza remarcação sem informá-la."""
+    return (
+        f"Você quer remarcar o prazo de [{code}]? "
+        "Me diga a nova data — ex: \"sexta\", \"dia 25\", \"em 3 dias\"."
+    )
+
+
 # ---------- Acks ----------
 def ack_concluida() -> str:
     return "Obrigado pelo retorno! Registrei a tarefa como *concluída*. ✅"

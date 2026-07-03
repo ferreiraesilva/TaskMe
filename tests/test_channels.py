@@ -305,3 +305,57 @@ def test_charges_open_charge_escopa_canal(monkeypatch):
     charges.has_open_charge("5562993119454", "telegram")
     assert "q.channel = %s" in captured["sql"]
     assert "telegram" in captured["params"]
+
+
+# ---------- BUG-0001: remarcação sem data pede a nova data ----------
+
+class _FakeCur:
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+
+
+def _open_charge_row(channel="whatsapp"):
+    return {"queue_id": "q1", "task_id": "t1", "code": "TM-1002", "title": "x", "channel": channel}
+
+
+def test_request_new_due_pergunta_uma_vez(monkeypatch):
+    from taskme.services import charges
+    sends, events = [], []
+    def fake_query_one(sql, params):
+        if "interaction_queue" in sql:
+            return _open_charge_row()
+        if "task_events" in sql:
+            return None  # nenhum evento anterior
+        return None
+    monkeypatch.setattr(charges.db, "query_one", fake_query_one)
+    monkeypatch.setattr(charges.notify, "send_on",
+                        lambda phone, channel, msg: sends.append((phone, channel)) or True)
+    monkeypatch.setattr(charges.db, "transaction", lambda: _FakeCur())
+    monkeypatch.setattr(charges, "add_event",
+                        lambda cur, tid, typ, actor, summary=None, **k: events.append((typ, summary)))
+
+    assert charges.request_new_due("556299299266", "whatsapp") == "asked"
+    assert sends == [("556299299266", "whatsapp")]
+    assert events == [("nota", charges._AWAIT_DUE_MARK)]
+
+
+def test_request_new_due_nao_repete(monkeypatch):
+    from taskme.services import charges
+    called = []
+    def fake_query_one(sql, params):
+        if "interaction_queue" in sql:
+            return _open_charge_row()
+        if "task_events" in sql:
+            return {"type": "nota", "summary": charges._AWAIT_DUE_MARK}
+        return None
+    monkeypatch.setattr(charges.db, "query_one", fake_query_one)
+    monkeypatch.setattr(charges.notify, "send_on", lambda *a: called.append(a) or True)
+
+    assert charges.request_new_due("556299299266", "whatsapp") == "defer"
+    assert called == []  # não pergunta de novo → deixa o agente conduzir
+
+
+def test_request_new_due_sem_cobranca(monkeypatch):
+    from taskme.services import charges
+    monkeypatch.setattr(charges.db, "query_one", lambda sql, params: None)
+    assert charges.request_new_due("556299299266", "whatsapp") == "defer"

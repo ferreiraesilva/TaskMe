@@ -142,7 +142,11 @@ def handle_gateway(event, **kwargs) -> dict | None:
                 return None
             new_due_date = dates.resolve_due(phrase, config.now())
             if new_due_date is None:
-                # Data não parseável → agent handle
+                # BUG-0001: intenção de remarcar sem data parseável. Em vez de
+                # cair silenciosamente pro agente (que não respondia de forma
+                # confiável), pedimos a nova data de forma determinística.
+                if charges.request_new_due(phone, channel) == "asked":
+                    return {"action": "skip", "reason": "taskme-charge-ask-due"}
                 return None
             new_due = new_due_date.isoformat()
 

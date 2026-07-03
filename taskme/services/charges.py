@@ -47,6 +47,35 @@ def route_inbound(phone: str, channel: str | None = None) -> str:
     return "skip" if has_open_charge(phone, channel) else "allow"
 
 
+# Marcador de estado: já pedimos a nova data e aguardamos o assignado informá-la.
+_AWAIT_DUE_MARK = "aguardando nova data informada pelo assignado"
+
+
+def request_new_due(phone: str, channel: str | None = None) -> str:
+    """Assignado sinalizou remarcação SEM data parseável.
+
+    Pede a nova data de forma determinística (não depende do agente) — 1 vez por
+    "rodada": se a última interação já foi este pedido e a pessoa ainda não deu
+    a data, devolve 'defer' para o agente conduzir (evita loop).
+
+    Retorna 'asked' (perguntou → o hook deve dar skip no dispatch) ou 'defer'.
+    """
+    p = normalize_phone(phone)
+    openc = _open_charge_for_phone(p, channel)
+    if not openc:
+        return "defer"
+    last = db.query_one(
+        "SELECT type, summary FROM task_events WHERE task_id=%s ORDER BY created_at DESC LIMIT 1",
+        (openc["task_id"],),
+    )
+    if last and last.get("type") == "nota" and last.get("summary") == _AWAIT_DUE_MARK:
+        return "defer"
+    notify.send_on(p, openc["channel"], templates.ask_new_due(openc["code"]))
+    with db.transaction() as cur:
+        add_event(cur, openc["task_id"], "nota", "sistema", _AWAIT_DUE_MARK)
+    return "asked"
+
+
 # ---------- envio ----------
 def _send_charge(phone: str, channel: str, contact_name: str, code: str, title: str, task_id: str) -> None:
     notify.send_on(phone, channel, templates.due_charge(contact_name, code, title))
