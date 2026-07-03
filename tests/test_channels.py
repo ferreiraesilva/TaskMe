@@ -188,7 +188,7 @@ def test_resend_task_sem_canal_registra_nota(monkeypatch):
     monkeypatch.setattr(tasks.db, "query_one", lambda *a, **k: _fake_task_row())
     monkeypatch.setattr(tasks.channels, "has_inbound", lambda phone, platform: True)
     monkeypatch.setattr(tasks.notify, "channel_targets", lambda phone, channel: [])
-    monkeypatch.setattr(tasks.notify, "send_on", lambda phone, channel, msg: False)
+    monkeypatch.setattr(tasks.notify, "send_on", lambda phone, channel, msg, **kwargs: False)
 
     class FakeCur:
         def __enter__(self): return self
@@ -260,7 +260,7 @@ def test_resend_task_entregue_no_canal_da_tarefa(monkeypatch):
     sends = []
     monkeypatch.setattr(tasks.db, "query_one", lambda *a, **k: _fake_task_row(channel="telegram"))
     monkeypatch.setattr(tasks.notify, "channel_targets", lambda phone, channel: ["telegram:42"])
-    monkeypatch.setattr(tasks.notify, "send_on", lambda phone, channel, msg: sends.append((phone, channel)) or True)
+    monkeypatch.setattr(tasks.notify, "send_on", lambda phone, channel, msg, **kwargs: sends.append((phone, channel)) or True)
 
     class FakeCur:
         def __enter__(self): return self
@@ -369,7 +369,7 @@ def test_request_new_due_pergunta_uma_vez(monkeypatch):
         return None
     monkeypatch.setattr(charges.db, "query_one", fake_query_one)
     monkeypatch.setattr(charges.notify, "send_on",
-                        lambda phone, channel, msg: sends.append((phone, channel)) or True)
+                        lambda phone, channel, msg, **kwargs: sends.append((phone, channel)) or True)
     monkeypatch.setattr(charges.db, "transaction", lambda: _FakeCur())
     monkeypatch.setattr(charges, "add_event",
                         lambda cur, tid, typ, actor, summary=None, **k: events.append((typ, summary)))

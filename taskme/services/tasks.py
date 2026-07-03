@@ -120,7 +120,10 @@ def commit_task(
         contact["name"], owner.get("name") or "a equipe", code, title, description, d
     )
     had_targets = bool(notify.channel_targets(contact["whatsapp_phone"], channel))
-    sent = notify.send_on(contact["whatsapp_phone"], channel, msg)
+    sent = notify.send_on(
+        contact["whatsapp_phone"], channel, msg,
+        idempotency_key=f"task:{task_id}:assignment",
+    )
     with db.transaction() as cur:
         if sent:
             add_event(cur, task_id, "enviada", "sistema", "tarefa enviada ao assignado")
@@ -183,7 +186,10 @@ def resend_task(task_code: str, requester_phone: str | None = None) -> dict:
         task["code"], task["title"], task.get("description"), d,
     )
     had_targets = bool(notify.channel_targets(task["assignee_phone"], channel))
-    sent = notify.send_on(task["assignee_phone"], channel, msg)
+    sent = notify.send_on(
+        task["assignee_phone"], channel, msg,
+        idempotency_key=f"task:{task['id']}:assignment",
+    )
     with db.transaction() as cur:
         if sent:
             add_event(cur, task["id"], "enviada", "sistema", "tarefa reenviada ao assignado")

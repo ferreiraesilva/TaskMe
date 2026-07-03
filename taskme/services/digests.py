@@ -30,7 +30,10 @@ def build_monday_digests(now: datetime | None = None) -> list[dict]:
     sent = []
     for (phone, channel), g in by_key.items():
         msg = templates.monday_digest(g["name"], g["items"])
-        notify.send_on(phone, channel, msg)
+        notify.send_on(
+            phone, channel, msg,
+            idempotency_key=f"digest:assignee:{phone}:{channel}:{now.date().isoformat()}",
+        )
         sent.append({"phone": phone, "channel": channel, "n": len(g["items"])})
     return sent
 
@@ -102,7 +105,10 @@ def build_assigner_digests(now: datetime | None = None) -> list[dict]:
     sent = []
     for (phone, channel), g in keys.items():
         msg = templates.assigner_daily(g["name"], g["c"], g["r"], g["a"])
-        notify.send_on(phone, channel, msg)
+        notify.send_on(
+            phone, channel, msg,
+            idempotency_key=f"digest:assigner:{phone}:{channel}:{y.isoformat()}",
+        )
         sent.append({"phone": phone, "channel": channel,
                      "concluidas": len(g["c"]), "reprogramadas": len(g["r"]), "atrasadas": len(g["a"])})
     return sent

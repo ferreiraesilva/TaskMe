@@ -29,6 +29,14 @@ O número público usado no link vem de `TASKME_WHATSAPP_BOT_PHONE` ou, por padr
 de `WHATSAPP_ACCOUNT_PHONE`. No deploy gerenciado, este último é preenchido por
 `whatsapp.account_phone` no inventário do `hermes-infra`.
 
+## Entrega idempotente
+
+Tarefas, cobranças, confirmações e digests usam chaves determinísticas de
+idempotência. O estado fica em `taskme_outbound_deliveries`, no PostgreSQL. Um
+retry com a mesma chave, destino e conteúdo não produz uma segunda mensagem;
+falhas confirmadas podem ser retomadas, e reservas abandonadas são liberadas
+depois de cinco minutos. A mesma chave com outro destino ou conteúdo é rejeitada.
+
 ## Setup (host do Hermes)
 ```bash
 git clone https://github.com/ferreiraesilva/TaskMe.git ~/projects/TaskMe

@@ -11,7 +11,7 @@ Regras:
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from .. import config, db, notify, templates
 from ..events import add_event
@@ -70,15 +70,25 @@ def request_new_due(phone: str, channel: str | None = None) -> str:
     )
     if last and last.get("type") == "nota" and last.get("summary") == _AWAIT_DUE_MARK:
         return "defer"
-    notify.send_on(p, openc["channel"], templates.ask_new_due(openc["code"]))
+    notify.send_on(
+        p, openc["channel"], templates.ask_new_due(openc["code"]),
+        idempotency_key=f"task:{openc['task_id']}:ask-new-due",
+    )
     with db.transaction() as cur:
         add_event(cur, openc["task_id"], "nota", "sistema", _AWAIT_DUE_MARK)
     return "asked"
 
 
 # ---------- envio ----------
-def _send_charge(phone: str, channel: str, contact_name: str, code: str, title: str, task_id: str) -> None:
-    notify.send_on(phone, channel, templates.due_charge(contact_name, code, title))
+def _send_charge(
+    phone: str, channel: str, contact_name: str, code: str, title: str,
+    task_id: str, delivery_date: date | None = None,
+) -> None:
+    delivery_date = delivery_date or config.today()
+    notify.send_on(
+        phone, channel, templates.due_charge(contact_name, code, title),
+        idempotency_key=f"task:{task_id}:due-charge:{delivery_date.isoformat()}",
+    )
     with db.transaction() as cur:
         add_event(cur, task_id, "cobranca", "sistema", f"cobrança enviada ({code})")
 
@@ -119,7 +129,10 @@ def _start_charge_for_phone(phone: str, channel: str, now: datetime) -> dict | N
                    VALUES (%s,%s,%s,'aguardando_resposta', now())""",
                 (phone, task["id"], channel),
             )
-    _send_charge(phone, task["channel"], task["cname"], task["code"], task["title"], task["id"])
+    _send_charge(
+        phone, task["channel"], task["cname"], task["code"], task["title"],
+        task["id"], delivery_date=today,
+    )
     return {"phone": phone, "channel": channel, "code": task["code"]}
 
 
@@ -142,7 +155,10 @@ def build_due_charges(now: datetime | None = None) -> list[dict]:
             c = db.query_one(
                 "SELECT name FROM contacts WHERE whatsapp_phone=%s LIMIT 1", (phone,)
             )
-            _send_charge(phone, channel, c["name"] if c else "", openc["code"], openc["title"], openc["task_id"])
+            _send_charge(
+                phone, channel, c["name"] if c else "", openc["code"],
+                openc["title"], openc["task_id"], delivery_date=today,
+            )
             with db.transaction() as cur:
                 cur.execute(
                     "UPDATE interaction_queue SET sent_at=now() WHERE id=%s", (openc["queue_id"],)
@@ -233,9 +249,16 @@ def handle_reply(
             )
 
     # ack para o assignado + notificação em tempo real ao assigner, ambos no canal da tarefa
-    notify.send_on(p, task_channel, ack)
+    outcome_version = str(new_due or "done")
+    notify.send_on(
+        p, task_channel, ack,
+        idempotency_key=f"task:{code}:assignee-ack:{outcome}:{outcome_version}",
+    )
     if task_info and task_info.get("assigner_phone") and assigner_msg:
-        notify.send_on(task_info["assigner_phone"], task_channel, assigner_msg)
+        notify.send_on(
+            task_info["assigner_phone"], task_channel, assigner_msg,
+            idempotency_key=f"task:{code}:assigner-ack:{outcome}:{outcome_version}",
+        )
 
     nxt = _start_charge_for_phone(p, task_channel, now)
     return {"ok": True, "code": code, "ack": ack, "next_charge": nxt}
