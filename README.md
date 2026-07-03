@@ -12,6 +12,23 @@ cobra no vencimento, registra reprogramações e manda um resumo diário ao auto
 - **Identidade multicanal**: o telefone permanece como identidade canônica e pode
   receber endpoints WhatsApp e Telegram sem duplicar tarefas ou histórico.
 
+## Primeiro contato no WhatsApp
+
+O TaskMe nunca inicia uma conversa no WhatsApp. A tabela `taskme_channels` é a
+lista geral, por instância/bot, das pessoas que já enviaram uma mensagem. Salvar
+alguém no caderno particular de contatos de um assignante não autoriza envios.
+
+Quando o assignante tenta criar uma tarefa para alguém que ainda não falou com o
+bot, a criação é bloqueada e ele recebe um link `wa.me` para encaminhar. O link
+abre uma mensagem com um código temporário e de uso único. Quando o destinatário
+envia essa mensagem, o TaskMe registra o primeiro contato — inclusive quando o
+WhatsApp identifica o remetente por `@lid`. Depois disso, o assignante pode pedir
+a tarefa novamente.
+
+O número público usado no link vem de `TASKME_WHATSAPP_BOT_PHONE` ou, por padrão,
+de `WHATSAPP_ACCOUNT_PHONE`. No deploy gerenciado, este último é preenchido por
+`whatsapp.account_phone` no inventário do `hermes-infra`.
+
 ## Setup (host do Hermes)
 ```bash
 git clone https://github.com/ferreiraesilva/TaskMe.git ~/projects/TaskMe

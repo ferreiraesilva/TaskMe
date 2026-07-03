@@ -37,6 +37,7 @@ def test_notify_telegram_sem_whatsapp(monkeypatch):
 
 def test_notify_dual_channel(monkeypatch):
     monkeypatch.setattr(notify.config, "NOTIFY_CHANNELS", ("whatsapp", "telegram"))
+    monkeypatch.setattr(notify.channels, "has_inbound", lambda phone, platform: True)
     monkeypatch.setattr(
         notify.channels, "addresses",
         lambda phone, platforms: [{"platform": "telegram", "address": "42"}],
@@ -185,6 +186,7 @@ def test_resend_task_sem_canal_registra_nota(monkeypatch):
 
     events = []
     monkeypatch.setattr(tasks.db, "query_one", lambda *a, **k: _fake_task_row())
+    monkeypatch.setattr(tasks.channels, "has_inbound", lambda phone, platform: True)
     monkeypatch.setattr(tasks.notify, "channel_targets", lambda phone, channel: [])
     monkeypatch.setattr(tasks.notify, "send_on", lambda phone, channel, msg: False)
 
@@ -222,6 +224,36 @@ def test_resend_task_nao_encontrada(monkeypatch):
     assert res["error"] == "task_not_found"
 
 
+def test_commit_task_bloqueia_whatsapp_sem_primeiro_contato(monkeypatch):
+    from taskme.services import tasks
+    writes = []
+    monkeypatch.setattr(
+        tasks.contacts, "get_contact",
+        lambda contact_id: {
+            "id": contact_id,
+            "name": "Lívia",
+            "whatsapp_phone": "5562988887777",
+        },
+    )
+    monkeypatch.setattr(tasks.channels, "has_inbound", lambda phone, platform: False)
+    monkeypatch.setattr(
+        tasks.contacts, "get_or_create_user", lambda *a, **k: writes.append("user")
+    )
+    monkeypatch.setattr(tasks.db, "transaction", lambda: writes.append("transaction"))
+
+    result = tasks.commit_task(
+        "5562993119454", "contact-1", "Envie o contrato", None,
+        "2026-07-10", channel="whatsapp",
+    )
+
+    assert result == {
+        "error": "recipient_not_started",
+        "assignee_name": "Lívia",
+        "assignee_phone": "5562988887777",
+    }
+    assert writes == []
+
+
 def test_resend_task_entregue_no_canal_da_tarefa(monkeypatch):
     from taskme.services import tasks
     events = []
@@ -248,6 +280,7 @@ def test_resend_task_entregue_no_canal_da_tarefa(monkeypatch):
 
 def test_channel_targets_isola_canal(monkeypatch):
     from taskme import notify
+    monkeypatch.setattr(notify.channels, "has_inbound", lambda phone, platform: True)
     monkeypatch.setattr(notify.channels, "addresses",
                         lambda phone, platforms: [{"platform": "telegram", "address": "42"}])
     assert notify.channel_targets("5562993119454", "whatsapp") == [
@@ -261,6 +294,7 @@ def test_send_on_entrega_so_no_canal(monkeypatch):
     from taskme import notify
     calls = []
     monkeypatch.setattr(notify.config, "HERMES_SEND_CMD", "hermes send")
+    monkeypatch.setattr(notify.channels, "has_inbound", lambda phone, platform: True)
     monkeypatch.setattr(notify.channels, "addresses",
                         lambda phone, platforms: [{"platform": "telegram", "address": "42"}])
     monkeypatch.setattr(notify.subprocess, "run",
@@ -268,6 +302,12 @@ def test_send_on_entrega_so_no_canal(monkeypatch):
     assert notify.send_on("5562993119454", "whatsapp", "oi") is True
     # só o alvo whatsapp foi acionado, telegram não
     assert calls == [["hermes", "send", "--to", "whatsapp:5562993119454@s.whatsapp.net", "oi"]]
+
+
+def test_whatsapp_sem_inbound_nao_gera_alvo(monkeypatch):
+    from taskme import notify
+    monkeypatch.setattr(notify.channels, "has_inbound", lambda phone, platform: False)
+    assert notify.channel_targets("5562993119454", "whatsapp") == []
 
 
 def test_query_tasks_filtra_por_canal(monkeypatch):

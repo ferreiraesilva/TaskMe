@@ -40,3 +40,17 @@ def addresses(phone: str, platforms: tuple[str, ...]) -> list[dict]:
            ORDER BY platform, address""",
         (p, list(platforms)),
     )
+
+
+def has_inbound(phone: str, platform: str) -> bool:
+    """True quando a pessoa ja iniciou conversa neste bot/canal."""
+    p = normalize_phone(phone)
+    platform = (platform or "").strip().lower()
+    if not p or platform not in {"telegram", "whatsapp"}:
+        return False
+    return db.query_one(
+        """SELECT 1 AS found FROM taskme_channels
+           WHERE phone=%s AND platform=%s AND enabled=true
+           LIMIT 1""",
+        (p, platform),
+    ) is not None

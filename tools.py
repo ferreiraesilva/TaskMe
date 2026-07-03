@@ -4,8 +4,8 @@ from __future__ import annotations
 import json
 import logging
 
-from .taskme import config, dates
-from .taskme.services import charges, contacts, queries, reprogram as reprogram_svc, tasks
+from .taskme import config, dates, invitations
+from .taskme.services import channels, charges, contacts, queries, reprogram as reprogram_svc, tasks
 from .taskme.util import normalize_phone
 
 log = logging.getLogger("taskme.tools")
@@ -13,6 +13,31 @@ log = logging.getLogger("taskme.tools")
 
 def _ok(data: dict) -> str:
     return json.dumps(data, default=str, ensure_ascii=False)
+
+
+def _first_contact_required(owner_phone: str, name: str, phone: str) -> dict:
+    invite = invitations.create(owner_phone, phone)
+    if invite.get("url"):
+        return {
+            "status": "recipient_not_started",
+            "assignee_name": name,
+            "invite_url": invite["url"],
+            "message": (
+                f"{name} ainda não iniciou uma conversa com este bot. "
+                "Por segurança, não vou criar nem enviar a tarefa. Envie este "
+                "link para a pessoa; ela deve abrir e enviar a mensagem preenchida: "
+                f"{invite['url']} Depois disso, peça a tarefa novamente."
+            ),
+        }
+    return {
+        "status": "recipient_not_started",
+        "assignee_name": name,
+        "message": (
+            f"{name} ainda não iniciou uma conversa com este bot. "
+            "Por segurança, não vou criar nem enviar a tarefa. O número do bot "
+            "não está configurado para gerar o link wa.me."
+        ),
+    }
 
 
 def taskme_propor_tarefa(args: dict, **kwargs) -> str:
@@ -53,6 +78,12 @@ def taskme_propor_tarefa(args: dict, **kwargs) -> str:
             })
 
         contact = contact_result["candidates"][0]
+        if channel == "whatsapp" and not channels.has_inbound(
+            contact["whatsapp_phone"], "whatsapp"
+        ):
+            return _ok(_first_contact_required(
+                owner_phone, contact["name"], contact["whatsapp_phone"]
+            ))
         proposal = tasks.propose_task(
             owner_phone, contact["id"], title, description,
             due_phrase=due_phrase, now=config.now(),
@@ -108,6 +139,10 @@ def taskme_criar_tarefa(args: dict, **kwargs) -> str:
             owner_phone, assignee_contact_id, title, description, due,
             owner_name=owner_name, channel=channel,
         )
+        if result.get("error") == "recipient_not_started":
+            return _ok(_first_contact_required(
+                owner_phone, result["assignee_name"], result["assignee_phone"]
+            ))
         if result.get("error"):
             return _ok({"status": "error", "message": result["error"]})
 
@@ -156,6 +191,10 @@ def taskme_reenviar(args: dict, **kwargs) -> str:
             return _ok({"status": "error", "message": "Só quem criou a tarefa pode reenviá-la."})
         if err == "task_completed":
             return _ok({"status": "error", "message": f"A tarefa {task_code} já está concluída — não há o que reenviar."})
+        if err == "recipient_not_started":
+            return _ok(_first_contact_required(
+                phone, result["assignee_name"], result["assignee_phone"]
+            ))
         if err:
             return _ok({"status": "error", "message": err})
 

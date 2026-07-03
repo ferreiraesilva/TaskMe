@@ -6,7 +6,7 @@ from datetime import date, datetime
 from .. import config, db, notify, templates
 from ..events import add_event
 from ..util import normalize_phone, summarize
-from . import contacts
+from . import channels, contacts
 
 
 def _to_date(value) -> date | None:
@@ -79,10 +79,18 @@ def commit_task(
     channel = (channel or "whatsapp").strip().lower()
     if channel not in ("whatsapp", "telegram"):
         channel = "whatsapp"
-    owner = contacts.get_or_create_user(owner_phone, owner_name)
     contact = contacts.get_contact(assignee_contact_id)
     if not contact:
         return {"error": "contact_not_found"}
+    if channel == "whatsapp" and not channels.has_inbound(
+        contact["whatsapp_phone"], "whatsapp"
+    ):
+        return {
+            "error": "recipient_not_started",
+            "assignee_name": contact["name"],
+            "assignee_phone": contact["whatsapp_phone"],
+        }
+    owner = contacts.get_or_create_user(owner_phone, owner_name)
     d = _to_date(due)
     if d is None:
         return {"error": "due_required"}
@@ -160,6 +168,15 @@ def resend_task(task_code: str, requester_phone: str | None = None) -> dict:
         return {"error": "task_completed"}
 
     channel = task["channel"]
+    if channel == "whatsapp" and not channels.has_inbound(
+        task["assignee_phone"], "whatsapp"
+    ):
+        return {
+            "error": "recipient_not_started",
+            "code": task["code"],
+            "assignee_name": task["assignee_name"],
+            "assignee_phone": task["assignee_phone"],
+        }
     d = _to_date(task["current_due_date"])
     msg = templates.task_message(
         task["assignee_name"], task["assigner_name"] or "a equipe",

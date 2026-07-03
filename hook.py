@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import re
 
-from .taskme import config, dates
+from .taskme import config, dates, invitations
 from .taskme.services import charges, channels, contacts
 from .taskme.identity import channel_from_platform, platform_from_event, resolve
 from .taskme.util import normalize_phone
@@ -84,6 +84,12 @@ def handle_gateway(event, **kwargs) -> dict | None:
 
         phone = resolve(platform, user_id) if (platform and user_id) else ""
 
+        # Se o JID ja traz o telefone, consome o convite para impedir que o
+        # token continue reutilizavel depois da primeira mensagem.
+        if phone and platform == "whatsapp" and user_id:
+            text = (getattr(event, "text", None) or "").strip()
+            invitations.redeem(text, user_id, expected_phone=phone)
+
         # Se o remetente não tiver telefone vinculado ainda, tentamos vincular
         # dinamicamente caso ele envie um contato ou um número. Vale para Telegram
         # e para WhatsApp por LID (não-contato cujo telefone o bridge não resolveu).
@@ -92,14 +98,19 @@ def handle_gateway(event, **kwargs) -> dict | None:
             new_phone = None
             name = None
 
+            # O convite resolve contatos novos que chegam como @lid e registra
+            # que o proprio destinatario iniciou a conversa com este bot.
+            if platform == "whatsapp":
+                new_phone = invitations.redeem(text, user_id)
+
             # Caso 1: Contato compartilhado
-            if text.startswith("Contato compartilhado:"):
+            if not new_phone and text.startswith("Contato compartilhado:"):
                 parts = text.split("|")
                 if len(parts) == 2:
                     name = parts[0].replace("Contato compartilhado:", "").strip()
                     new_phone = normalize_phone(parts[1])
             # Caso 2: Digitou o número diretamente
-            else:
+            elif not new_phone:
                 # Remove caracteres comuns de formatação
                 clean_num = "".join(ch for ch in text if ch.isdigit())
                 if 10 <= len(clean_num) <= 15:

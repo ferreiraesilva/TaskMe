@@ -29,7 +29,7 @@ def telegram_target(address: str) -> str:
 def targets(phone: str) -> list[str]:
     """Destinos ativos da pessoa, respeitando os canais habilitados na instalação."""
     result: list[str] = []
-    if "whatsapp" in config.NOTIFY_CHANNELS:
+    if "whatsapp" in config.NOTIFY_CHANNELS and channels.has_inbound(phone, "whatsapp"):
         result.append(whatsapp_target(phone))
     if "telegram" in config.NOTIFY_CHANNELS:
         result.extend(
@@ -43,6 +43,8 @@ def channel_targets(phone: str, channel: str) -> list[str]:
     """Destinos da pessoa em UM único canal (o canal da tarefa)."""
     channel = (channel or "").strip().lower()
     if channel == "whatsapp":
+        if not channels.has_inbound(phone, "whatsapp"):
+            return []
         return [whatsapp_target(phone)]
     if channel == "telegram":
         return [
